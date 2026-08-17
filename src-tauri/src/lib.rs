@@ -1,5 +1,6 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri::Manager as _;
     tauri::Builder::default()
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -13,6 +14,19 @@ pub fn run() {
             // Start the local Hermes Studio service if it is not already running,
             // so the app works without requiring JP to open a terminal.
             crate::service::ensure_studio_service(app.handle().clone());
+
+            // Attach the window to the live local Studio service (which holds the
+            // Hermes gateway bearer-token proxy) rather than the bundled static
+            // client. The bundled dist is only a build-time fallback.
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1200));
+                    if let Some(win) = handle.get_webview_window("main") {
+                        let _ = win.navigate("http://127.0.0.1:3000".parse().unwrap());
+                    }
+                });
+            }
 
             Ok(())
         })
