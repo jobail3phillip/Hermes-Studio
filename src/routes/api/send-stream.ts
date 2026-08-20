@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
+import YAML from 'yaml'
 import { resolveSessionKey } from '../../server/session-utils'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
@@ -9,9 +13,7 @@ import {
   unregisterActiveSendRun,
 } from '../../server/send-run-tracker'
 import { getChatMode } from '../../server/gateway-capabilities'
-import {
-  openaiChat
-} from '../../server/openai-compat-api'
+import { openaiChat } from '../../server/openai-compat-api'
 import {
   SESSIONS_API_UNAVAILABLE_MESSAGE,
   createSession,
@@ -23,13 +25,42 @@ import {
   appendLocalMessage,
   ensureLocalSession,
 } from '../../server/local-session-store'
-import type {OpenAICompatContentPart, OpenAICompatMessage} from '../../server/openai-compat-api';
+import type {
+  OpenAICompatContentPart,
+  OpenAICompatMessage,
+} from '../../server/openai-compat-api'
 // Hermes agent runs can take 5+ minutes with complex tool chains
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
 const SESSION_BOOTSTRAP_KEYS = new Set(['main', 'new'])
+const CONFIG_PATH = path.join(os.homedir(), '.hermes', 'config.yaml')
+const VIRTUAL_MODELS = new Set(['hermes-agent'])
 
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function readConfiguredDefaultModel(): string {
+  try {
+    const config = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as
+      | Record<string, unknown>
+      | null
+      | undefined
+    const modelConfig = config?.model
+    if (typeof modelConfig === 'string') return modelConfig.trim()
+    if (modelConfig && typeof modelConfig === 'object') {
+      const record = modelConfig as Record<string, unknown>
+      return readString(record.default) || readString(record.model)
+    }
+  } catch {
+    /* ignore */
+  }
+  return ''
+}
+
+function resolveRequestModel(value: unknown): string | undefined {
+  const requested = readString(value)
+  if (requested && !VIRTUAL_MODELS.has(requested)) return requested
+  return readConfiguredDefaultModel() || undefined
 }
 
 function readNumber(value: unknown): number | undefined {
@@ -294,6 +325,7 @@ export const Route = createFileRoute('/api/send-stream')({
         const requestedFriendlyId =
           typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
         const message = String(body.message ?? '')
+        const resolvedModel = resolveRequestModel(body.model)
         const thinking =
           typeof body.thinking === 'string' ? body.thinking : undefined
         const attachments = normalizeAttachments(body.attachments)
@@ -427,8 +459,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     },
                   ]
                   const stream = await openaiChat(portableMessages, {
-                    model:
-                      typeof body.model === 'string' ? body.model : undefined,
+                    model: resolvedModel,
                     temperature:
                       typeof body.temperature === 'number'
                         ? body.temperature
@@ -499,7 +530,7 @@ export const Route = createFileRoute('/api/send-stream')({
               }
 
               if (SESSION_BOOTSTRAP_KEYS.has(sessionKey)) {
-                const session = await createSession()
+                const session = await createSession({ model: resolvedModel })
                 sessionKey = session.id
                 resolvedFriendlyId = session.id
               }
@@ -513,8 +544,7 @@ export const Route = createFileRoute('/api/send-stream')({
                 sessionKey,
                 {
                   message: getChatMessage(message, attachments),
-                  model:
-                    typeof body.model === 'string' ? body.model : undefined,
+                  model: resolvedModel,
                   system_message: thinking,
                   attachments: attachments || undefined,
                 },
@@ -819,8 +849,7 @@ export const Route = createFileRoute('/api/send-stream')({
                         runId,
                       }
                       sendEvent('approval', translated)
-                      skipPublish ||
-                        publishChatEvent('approval', translated)
+                      skipPublish || publishChatEvent('approval', translated)
                       return
                     }
 

@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import YAML from 'yaml'
 import { HERMES_API } from './gateway-capabilities'
 
 /** Optional bearer token for authenticated OpenAI-compatible endpoints (e.g. Codex OAuth). */
@@ -6,10 +10,40 @@ const BEARER_TOKEN = process.env.HERMES_API_TOKEN || ''
 /** Cached first available model from /v1/models — used as fallback when no model is specified. */
 let _cachedDefaultModel: string | null = null
 
+function readConfiguredDefaultModel(): string {
+  try {
+    const configPath = path.join(os.homedir(), '.hermes', 'config.yaml')
+    const config = YAML.parse(fs.readFileSync(configPath, 'utf-8')) as
+      | Record<string, unknown>
+      | null
+      | undefined
+    const modelConfig = config?.model
+    if (typeof modelConfig === 'string') return modelConfig.trim()
+    if (modelConfig && typeof modelConfig === 'object') {
+      const record = modelConfig as Record<string, unknown>
+      const defaultModel =
+        typeof record.default === 'string'
+          ? record.default
+          : typeof record.model === 'string'
+            ? record.model
+            : ''
+      return defaultModel.trim()
+    }
+  } catch {
+    /* ignore */
+  }
+  return ''
+}
+
 async function getDefaultModel(): Promise<string> {
   if (_cachedDefaultModel) return _cachedDefaultModel
   if (process.env.HERMES_DEFAULT_MODEL) {
     _cachedDefaultModel = process.env.HERMES_DEFAULT_MODEL
+    return _cachedDefaultModel
+  }
+  const configuredModel = readConfiguredDefaultModel()
+  if (configuredModel) {
+    _cachedDefaultModel = configuredModel
     return _cachedDefaultModel
   }
   try {
@@ -26,7 +60,10 @@ async function getDefaultModel(): Promise<string> {
         const preferred = data.data.find((m) =>
           /qwen|llama|mistral|gemma/i.test(m.id),
         )
-        _cachedDefaultModel = preferred?.id ?? data.data[0].id
+        _cachedDefaultModel =
+          preferred?.id ??
+          data.data.find((m) => m.id !== 'hermes-agent')?.id ??
+          data.data[0].id
         return _cachedDefaultModel
       }
     }
@@ -71,12 +108,15 @@ type OpenAIChatCompletionResponse = {
   }>
 }
 
+/** Virtual/placeholder model ids that must never be sent to the gateway as a real model. */
+const VIRTUAL_MODELS = new Set(['default', 'hermes-agent'])
+
 export async function buildRequestBody(
   messages: Array<OpenAICompatMessage>,
   options: OpenAIChatOptions,
 ): Promise<OpenAIChatRequest> {
   const model =
-    options.model && options.model !== 'default'
+    options.model && !VIRTUAL_MODELS.has(options.model)
       ? options.model
       : await getDefaultModel()
   return {

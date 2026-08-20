@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
+import YAML from 'yaml'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
@@ -21,6 +25,43 @@ import {
   updateLocalSessionTitle,
 } from '../../server/local-session-store'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
+
+/** Virtual/placeholder model ids that must never be persisted as a session's real model. */
+const VIRTUAL_MODELS = new Set(['default', 'hermes-agent'])
+
+function readConfiguredDefaultModel(): string | undefined {
+  try {
+    const configPath = path.join(os.homedir(), '.hermes', 'config.yaml')
+    const config = YAML.parse(fs.readFileSync(configPath, 'utf-8')) as
+      | Record<string, unknown>
+      | null
+      | undefined
+    const modelConfig = config?.model
+    if (typeof modelConfig === 'string') return modelConfig.trim() || undefined
+    if (modelConfig && typeof modelConfig === 'object') {
+      const record = modelConfig as Record<string, unknown>
+      const value =
+        (typeof record.default === 'string' && record.default) ||
+        (typeof record.model === 'string' && record.model) ||
+        ''
+      return value.trim() || undefined
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined
+}
+
+/**
+ * Resolve the model to persist for a new session. Requests that omit a model
+ * (e.g. the "new session for message" pre-create) must not leave it to the
+ * gateway's own default, which persists the virtual "hermes-agent" id as the
+ * session's real model — that then outranks every later per-request override.
+ */
+export function resolveSessionModel(requested: string | undefined): string | undefined {
+  if (requested && !VIRTUAL_MODELS.has(requested)) return requested
+  return readConfiguredDefaultModel()
+}
 
 export const Route = createFileRoute('/api/sessions')({
   server: {
@@ -98,7 +139,7 @@ export const Route = createFileRoute('/api/sessions')({
 
           const requestedModel =
             typeof body.model === 'string' ? body.model.trim() : ''
-          const model = requestedModel || undefined
+          const model = resolveSessionModel(requestedModel || undefined)
           const session = await createSession({
             id: friendlyId || randomUUID(),
             title: label,
