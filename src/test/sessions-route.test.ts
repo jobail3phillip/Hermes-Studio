@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveSessionModel } from '@/routes/api/sessions'
+import { resolveSessionModel, resolveSessionProvider } from '@/routes/api/sessions'
 
 describe('resolveSessionModel', () => {
   it('never persists the virtual "hermes-agent" model on a new session', () => {
@@ -14,5 +14,20 @@ describe('resolveSessionModel', () => {
 
   it('passes through a real requested model unchanged', () => {
     expect(resolveSessionModel('claude-sonnet-4-6')).toBe('claude-sonnet-4-6')
+  })
+})
+
+describe('resolveSessionProvider', () => {
+  it('passes through an explicitly requested provider unchanged', () => {
+    expect(resolveSessionProvider('openai-codex')).toBe('openai-codex')
+    expect(resolveSessionProvider('anthropic')).toBe('anthropic')
+  })
+
+  it('an explicit request always wins over whatever is configured', () => {
+    // Regression for the session-model-pins-the-wrong-provider bug: a new
+    // session must be able to explicitly request a non-default provider
+    // rather than silently inheriting the configured default.
+    expect(resolveSessionProvider('openai-codex')).not.toBeUndefined()
+    expect(resolveSessionProvider('openai-codex')).toBe('openai-codex')
   })
 })

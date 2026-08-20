@@ -39,28 +39,46 @@ function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function readConfiguredDefaultModel(): string {
+function readConfiguredDefault(): { model: string; provider: string } {
   try {
     const config = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as
       | Record<string, unknown>
       | null
       | undefined
     const modelConfig = config?.model
-    if (typeof modelConfig === 'string') return modelConfig.trim()
+    if (typeof modelConfig === 'string') {
+      return { model: modelConfig.trim(), provider: readString(config?.provider) }
+    }
     if (modelConfig && typeof modelConfig === 'object') {
       const record = modelConfig as Record<string, unknown>
-      return readString(record.default) || readString(record.model)
+      return {
+        model: readString(record.default) || readString(record.model),
+        provider: readString(record.provider) || readString(config?.provider),
+      }
     }
   } catch {
     /* ignore */
   }
-  return ''
+  return { model: '', provider: '' }
 }
 
-function resolveRequestModel(value: unknown): string | undefined {
+export function resolveRequestModel(value: unknown): string | undefined {
   const requested = readString(value)
   if (requested && !VIRTUAL_MODELS.has(requested)) return requested
-  return readConfiguredDefaultModel() || undefined
+  return readConfiguredDefault().model || undefined
+}
+
+/**
+ * Resolve which provider a chat turn should explicitly request. A
+ * request-supplied provider always wins; otherwise fall back to the
+ * configured default so Hermes Agent's gateway resolves the model against
+ * the provider the user actually selected (via the model switcher) rather
+ * than whichever provider happens to be pinned on an existing session.
+ */
+export function resolveRequestProvider(value: unknown): string | undefined {
+  const requested = readString(value)
+  if (requested) return requested
+  return readConfiguredDefault().provider || undefined
 }
 
 function readNumber(value: unknown): number | undefined {
@@ -326,6 +344,7 @@ export const Route = createFileRoute('/api/send-stream')({
           typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
         const message = String(body.message ?? '')
         const resolvedModel = resolveRequestModel(body.model)
+        const resolvedProvider = resolveRequestProvider(body.provider)
         const thinking =
           typeof body.thinking === 'string' ? body.thinking : undefined
         const attachments = normalizeAttachments(body.attachments)
@@ -530,7 +549,10 @@ export const Route = createFileRoute('/api/send-stream')({
               }
 
               if (SESSION_BOOTSTRAP_KEYS.has(sessionKey)) {
-                const session = await createSession({ model: resolvedModel })
+                const session = await createSession({
+                  model: resolvedModel,
+                  provider: resolvedProvider,
+                })
                 sessionKey = session.id
                 resolvedFriendlyId = session.id
               }
@@ -545,6 +567,7 @@ export const Route = createFileRoute('/api/send-stream')({
                 {
                   message: getChatMessage(message, attachments),
                   model: resolvedModel,
+                  provider: resolvedProvider,
                   system_message: thinking,
                   attachments: attachments || undefined,
                 },

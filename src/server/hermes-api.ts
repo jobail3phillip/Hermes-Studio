@@ -150,6 +150,7 @@ export async function createSession(opts?: {
   id?: string
   title?: string
   model?: string
+  provider?: string
 }): Promise<HermesSession> {
   const resp = await hermesPost<{ session: HermesSession }>(
     '/api/sessions',
@@ -346,6 +347,7 @@ export async function streamChat(
   body: {
     message: string
     model?: string
+    provider?: string
     system_message?: string
     attachments?: Array<Record<string, unknown>>
   },

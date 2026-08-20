@@ -29,7 +29,7 @@ import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 /** Virtual/placeholder model ids that must never be persisted as a session's real model. */
 const VIRTUAL_MODELS = new Set(['default', 'hermes-agent'])
 
-function readConfiguredDefaultModel(): string | undefined {
+function readConfiguredDefault(): { model?: string; provider?: string } {
   try {
     const configPath = path.join(os.homedir(), '.hermes', 'config.yaml')
     const config = YAML.parse(fs.readFileSync(configPath, 'utf-8')) as
@@ -37,19 +37,30 @@ function readConfiguredDefaultModel(): string | undefined {
       | null
       | undefined
     const modelConfig = config?.model
-    if (typeof modelConfig === 'string') return modelConfig.trim() || undefined
+    if (typeof modelConfig === 'string') {
+      return {
+        model: modelConfig.trim() || undefined,
+        provider:
+          (typeof config?.provider === 'string' && config.provider.trim()) ||
+          undefined,
+      }
+    }
     if (modelConfig && typeof modelConfig === 'object') {
       const record = modelConfig as Record<string, unknown>
-      const value =
+      const model =
         (typeof record.default === 'string' && record.default) ||
         (typeof record.model === 'string' && record.model) ||
         ''
-      return value.trim() || undefined
+      const provider =
+        (typeof record.provider === 'string' && record.provider) ||
+        (typeof config?.provider === 'string' && config.provider) ||
+        ''
+      return { model: model.trim() || undefined, provider: provider.trim() || undefined }
     }
   } catch {
     /* ignore */
   }
-  return undefined
+  return {}
 }
 
 /**
@@ -60,7 +71,18 @@ function readConfiguredDefaultModel(): string | undefined {
  */
 export function resolveSessionModel(requested: string | undefined): string | undefined {
   if (requested && !VIRTUAL_MODELS.has(requested)) return requested
-  return readConfiguredDefaultModel()
+  return readConfiguredDefault().model
+}
+
+/**
+ * Resolve which provider a new session should be explicitly created against.
+ * A request-supplied provider always wins; otherwise fall back to the
+ * configured default so the session is pinned to the provider the user
+ * actually selected via the model switcher.
+ */
+export function resolveSessionProvider(requested: string | undefined): string | undefined {
+  if (requested) return requested
+  return readConfiguredDefault().provider
 }
 
 export const Route = createFileRoute('/api/sessions')({
@@ -140,10 +162,14 @@ export const Route = createFileRoute('/api/sessions')({
           const requestedModel =
             typeof body.model === 'string' ? body.model.trim() : ''
           const model = resolveSessionModel(requestedModel || undefined)
+          const requestedProvider =
+            typeof body.provider === 'string' ? body.provider.trim() : ''
+          const provider = resolveSessionProvider(requestedProvider || undefined)
           const session = await createSession({
             id: friendlyId || randomUUID(),
             title: label,
             model,
+            provider,
           })
 
           return json({
