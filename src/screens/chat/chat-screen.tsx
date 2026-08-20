@@ -2135,7 +2135,7 @@ export function ChatScreen({
   )
 
   const send = useCallback(
-    (
+    async (
       body: string,
       attachments: Array<ChatComposerAttachment>,
       fastMode: boolean,
@@ -2175,8 +2175,26 @@ export function ChatScreen({
 
       if (isNewChat) {
         // In portable mode, use 'main' — no server-side sessions exist.
-        // In enhanced mode, create a UUID thread for the sessions API.
-        const threadId = isPortableMode ? 'main' : crypto.randomUUID()
+        // In enhanced mode, the session must exist on the gateway before we
+        // send to it, so we await creation and use whichever session key it
+        // actually assigns (normally the same UUID we requested).
+        let threadId = isPortableMode ? 'main' : crypto.randomUUID()
+
+        if (!isPortableMode) {
+          try {
+            const created = await createSessionForMessage(threadId)
+            threadId = created.sessionKey || threadId
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn('[chat] failed to create new thread', err)
+            }
+            toast('Could not start a new chat. Please try again.', {
+              type: 'error',
+            })
+            return
+          }
+        }
+
         const { optimisticMessage } = createOptimisticMessage(
           trimmedBody,
           attachmentPayload,
@@ -2186,17 +2204,6 @@ export function ChatScreen({
         setPendingGeneration(true)
         setSending(true)
         setWaitingForResponse(true)
-
-        if (!isPortableMode) {
-          void createSessionForMessage(threadId).catch((err: unknown) => {
-            if (import.meta.env.DEV) {
-              console.warn('[chat] failed to register new thread', err)
-            }
-            void queryClient.invalidateQueries({
-              queryKey: chatQueryKeys.sessions,
-            })
-          })
-        }
 
         sendMessage(
           threadId,
