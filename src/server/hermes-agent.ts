@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 
 const HERMES_HEALTH_TIMEOUT_MS = 2_000
@@ -49,35 +49,22 @@ function readHermesEnv(): Record<string, string> {
   }
 }
 
-/** Same directory resolution logic as vite.config.ts. */
-export function resolveHermesAgentDir(
-  env: Record<string, string | undefined> = process.env,
-): string | null {
-  const candidates: Array<string> = []
-
-  if (env.HERMES_AGENT_PATH?.trim()) {
-    candidates.push(env.HERMES_AGENT_PATH.trim())
-  }
-
-  const workspaceRoot = dirname(resolve('.'))
-  candidates.push(
-    resolve(workspaceRoot, 'hermes-agent'),
-    resolve(workspaceRoot, '..', 'hermes-agent'),
-  )
-
+/**
+ * Locate the installed `hermes` CLI. GUI-launched apps (Finder/Dock, or
+ * `open`) get a minimal launchd PATH that excludes `~/.local/bin`, so a
+ * bare `Command::new("hermes")`-style spawn fails silently here even
+ * though `hermes` resolves fine from an interactive shell.
+ */
+export function resolveHermesCli(): string {
+  const candidates = [
+    join(homedir(), '.local', 'bin', 'hermes'),
+    '/opt/homebrew/bin/hermes',
+    '/usr/local/bin/hermes',
+  ]
   for (const candidate of candidates) {
-    if (existsSync(resolve(candidate, 'webapi'))) return candidate
+    if (existsSync(candidate)) return candidate
   }
-
-  return null
-}
-
-export function resolveHermesPython(agentDir: string): string {
-  const venvPython = resolve(agentDir, '.venv', 'bin', 'python')
-  if (existsSync(venvPython)) return venvPython
-  const uvVenv = resolve(agentDir, 'venv', 'bin', 'python')
-  if (existsSync(uvVenv)) return uvVenv
-  return 'python3'
+  return 'hermes'
 }
 
 export async function isHermesAgentHealthy(
@@ -104,40 +91,23 @@ export async function startHermesAgent(): Promise<StartHermesAgentResult> {
 
   startPromise = (async () => {
     try {
-      const agentDir = resolveHermesAgentDir()
-      if (!agentDir) {
-        return {
-          ok: false,
-          error:
-            'hermes-agent not found. Clone it as a sibling directory or set HERMES_AGENT_PATH in .env',
-        }
-      }
-
-      const python = resolveHermesPython(agentDir)
+      const hermesCli = resolveHermesCli()
       const hermesEnv = readHermesEnv()
 
-      const child = spawn(
-        python,
-        [
-          '-m',
-          'uvicorn',
-          'webapi.app:app',
-          '--host',
-          '0.0.0.0',
-          '--port',
-          String(HERMES_START_PORT),
-        ],
-        {
-          cwd: agentDir,
-          detached: true,
-          stdio: 'ignore',
-          env: {
-            ...process.env,
-            ...hermesEnv,
-            PATH: `${resolve(agentDir, '.venv', 'bin')}:${resolve(agentDir, 'venv', 'bin')}:${process.env.PATH || ''}`,
-          },
-        },
-      )
+      const child = spawn(hermesCli, ['gateway', 'run'], {
+        detached: true,
+        stdio: 'ignore',
+        env: { ...process.env, ...hermesEnv },
+      })
+
+      const spawnError = new Promise<string | null>((resolveSpawn) => {
+        child.once('error', (err) => resolveSpawn(err.message))
+        child.once('spawn', () => resolveSpawn(null))
+      })
+      const err = await spawnError
+      if (err) {
+        return { ok: false, error: `hermes CLI not found: ${err}` }
+      }
 
       child.unref()
 
