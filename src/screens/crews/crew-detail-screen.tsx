@@ -73,6 +73,14 @@ function MemberCard({ member }: { member: CrewMember }) {
           </p>
           <p className="text-xs text-[var(--theme-muted)]">{member.roleLabel}</p>
         </div>
+        {member.advisory ? (
+          <span
+            title="Advisory only — no live dispatch path. Requires manual handoff."
+            className="mt-0.5 shrink-0 rounded-full border border-[var(--theme-warning,#f59e0b)]/40 bg-[var(--theme-warning,#f59e0b)]/10 px-2 py-0.5 text-[9px] font-medium text-[var(--theme-warning,#f59e0b)]"
+          >
+            Advisory
+          </span>
+        ) : (
         <span
           className={cn(
             'mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full',
@@ -81,6 +89,7 @@ function MemberCard({ member }: { member: CrewMember }) {
           )}
           title={indicator.label}
         />
+        )}
       </div>
 
       <div className="mb-3 flex items-center gap-1.5">

@@ -76,6 +76,7 @@ export const Route = createFileRoute('/api/crews/$crewId/clone')({
               color: m.color,
               model: m.model,
               profileName: m.profileName,
+              advisory: m.advisory === true,
             }
           }),
         )

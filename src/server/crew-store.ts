@@ -24,15 +24,17 @@ export interface CrewMember {
   id: string
   sessionKey: string
   role: CrewMemberRole
-  persona: string        // 'roger', 'sally', etc.
+  persona: string        // 'roger', 'sally', etc. (or 'cc'/'cx'/'atlas' in the real-stack workspace)
   displayName: string    // '🎨 Roger'
   roleLabel: string      // 'Frontend Developer'
-  color: string          // Tailwind color class
+  color: string           // Tailwind color class
   model: string | null
   /** Optional profile name — scopes this agent's file explorer to that profile's workspace */
   profileName: string | null
   status: CrewMemberStatus
   lastActivity: string | null  // ISO string of latest message preview
+  /** Advisory-only members (e.g. GPT/Atlas) have no live dispatch path — dispatch is rejected server-side. */
+  advisory?: boolean
 }
 
 export interface Crew {

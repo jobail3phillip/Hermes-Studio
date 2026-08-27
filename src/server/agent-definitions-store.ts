@@ -10,7 +10,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AgentDefinition } from '../types/agent'
-import { AGENT_PERSONAS } from '../lib/agent-personas'
+import { AGENT_PERSONAS, REAL_STACK_AGENTS } from '../lib/agent-personas'
+import { getActiveProfileName } from './profiles-browser'
 
 const DATA_DIR = join(process.cwd(), '.runtime')
 const AGENTS_FILE = join(DATA_DIR, 'agent-definitions.json')
@@ -29,7 +30,43 @@ const BUILTIN_SYSTEM_PROMPTS: Record<string, string> = {
   nova: `You are Nova, a Security Specialist agent. Your expertise covers authentication, authorization, encryption, vulnerability assessment, and secure coding practices. When given a task, identify and address security risks, enforce least-privilege principles, and harden the system against threats.`,
 }
 
+/**
+ * Real-stack system prompts — describe each member's actual capability and
+ * limits (governance-accurate: Atlas is explicitly advisory-only).
+ */
+const REAL_STACK_SYSTEM_PROMPTS: Record<string, string> = {
+  cc: `Claude Code — implementation execution resource. Real dispatch runs against the configured Claude model via the Hermes gateway session for this crew member.`,
+  cx: `Codex — architecture and technical-challenge execution resource. Real dispatch runs against the configured Codex model via the Hermes gateway session for this crew member.`,
+  atlas: `GPT/Atlas — JP's external ChatGPT strategic advisory partner. Advisory only: no implementation/mutation authority and no live dispatch path. Tasks routed here must be handed off manually.`,
+}
+
+/**
+ * Is the currently-active Hermes profile the primary/default Studio workspace?
+ * Crew identity (real stack vs. virtual personas) is workspace-scoped: only
+ * the default workspace represents JP's real execution stack. Other/future
+ * workspaces (e.g. Candela3) keep the persona/virtual-employee catalog.
+ */
+export function isPrimaryWorkspace(): boolean {
+  return getActiveProfileName() === 'default'
+}
+
 export function getBuiltInAgents(): AgentDefinition[] {
+  if (isPrimaryWorkspace()) {
+    return REAL_STACK_AGENTS.map((p) => ({
+      id: `builtin-${p.name.toLowerCase()}`,
+      name: p.name,
+      emoji: p.emoji,
+      color: p.color,
+      roleLabel: p.role,
+      systemPrompt: REAL_STACK_SYSTEM_PROMPTS[p.name.toLowerCase()] ?? '',
+      model: p.defaultModel ?? null,
+      tags: p.specialties.slice(0, 5),
+      isBuiltIn: true,
+      createdAt: 0,
+      updatedAt: 0,
+      advisory: p.advisory === true,
+    }))
+  }
   return AGENT_PERSONAS.map((p) => ({
     id: `builtin-${p.name.toLowerCase()}`,
     name: p.name,

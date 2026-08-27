@@ -9,7 +9,54 @@ export type AgentPersona = {
   emoji: string
   color: string // Tailwind color class
   specialties: Array<string>
+  /** Advisory-only members have no live dispatch/invocation path (e.g. GPT/Atlas). */
+  advisory?: boolean
+  /** Default model id to use when minting a session for this agent, if any. */
+  defaultModel?: string | null
 }
+
+/**
+ * Real execution stack — the primary/default Studio workspace's crew members.
+ * These represent JP's actual execution resources, not fictional personas:
+ *   - CC   = Claude Code   — implementation execution (real dispatch via delegate_task)
+ *   - CX   = Codex         — architecture / technical-challenge execution (real dispatch)
+ *   - Atlas = GPT/Atlas    — JP's external ChatGPT strategic advisor. Advisory only:
+ *     no mutation/implementation authority and no programmatic invocation path
+ *     equivalent to CC/CX, so it is marked `advisory: true` and never auto-dispatched.
+ */
+export const REAL_STACK_AGENTS: Array<AgentPersona> = [
+  {
+    name: 'CC',
+    role: 'Claude Code — Implementation',
+    emoji: '🛠️',
+    color: 'text-blue-400',
+    specialties: [
+      'implement', 'build', 'fix', 'refactor', 'code', 'feature',
+      'test', 'debug', 'ui', 'frontend', 'component', 'file',
+    ],
+    defaultModel: 'anthropic/claude-sonnet-4-6',
+  },
+  {
+    name: 'CX',
+    role: 'Codex — Architecture & Technical Challenge',
+    emoji: '🏛️',
+    color: 'text-purple-400',
+    specialties: [
+      'architecture', 'design', 'review', 'challenge', 'evaluate',
+      'system', 'schema', 'tradeoff', 'security', 'audit',
+    ],
+    defaultModel: 'openai-codex/gpt-5.3-codex',
+  },
+  {
+    name: 'Atlas',
+    role: 'GPT/Atlas — Strategic Advisory (ChatGPT, advisory only)',
+    emoji: '🧭',
+    color: 'text-amber-400',
+    specialties: ['strategy', 'advise', 'plan', 'consult', 'perspective'],
+    advisory: true,
+    defaultModel: null,
+  },
+]
 
 /** Default persona pool — assigned round-robin or by task matching */
 export const AGENT_PERSONAS: Array<AgentPersona> = [

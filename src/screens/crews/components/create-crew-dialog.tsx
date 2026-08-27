@@ -22,11 +22,17 @@ type MemberDraft = {
   role: CrewMemberRole
 }
 
-function getInitialMembers(): MemberDraft[] {
-  return [
-    { persona: 'kai', role: 'coordinator' },
-    { persona: 'luna', role: 'executor' },
-  ]
+function getInitialMembers(agentOptions: AgentDefinition[]): MemberDraft[] {
+  if (agentOptions.length >= 2) {
+    return [
+      { persona: agentOptions[0].name.toLowerCase(), role: 'coordinator' },
+      { persona: agentOptions[1].name.toLowerCase(), role: 'executor' },
+    ]
+  }
+  if (agentOptions.length === 1) {
+    return [{ persona: agentOptions[0].name.toLowerCase(), role: 'coordinator' }]
+  }
+  return []
 }
 
 type Props = {
@@ -48,13 +54,7 @@ export function CreateCrewDialog({
   initialGoal,
   initialMembers,
 }: Props) {
-  const [name, setName] = useState(initialName ?? '')
-  const [goal, setGoal] = useState(initialGoal ?? '')
-  const [members, setMembers] = useState<MemberDraft[]>(
-    initialMembers ?? getInitialMembers(),
-  )
-
-  // Fetch full agent list (built-ins + custom)
+  // Fetch full agent list (built-ins + custom, workspace-scoped)
   const { data: allAgents = [] } = useQuery({
     queryKey: ['agents'],
     queryFn: fetchAgents,
@@ -79,11 +79,17 @@ export function CreateCrewDialog({
         updatedAt: 0,
       }))
 
+  const [name, setName] = useState(initialName ?? '')
+  const [goal, setGoal] = useState(initialGoal ?? '')
+  const [members, setMembers] = useState<MemberDraft[]>(
+    initialMembers ?? getInitialMembers(agentOptions),
+  )
+
   useEffect(() => {
     if (!open) {
       setName(initialName ?? '')
       setGoal(initialGoal ?? '')
-      setMembers(initialMembers ?? getInitialMembers())
+      setMembers(initialMembers ?? getInitialMembers(agentOptions))
       return
     }
     const prev = document.body.style.overflow
@@ -96,7 +102,7 @@ export function CreateCrewDialog({
       document.body.style.overflow = prev
       window.removeEventListener('keydown', onKey)
     }
-  }, [open, onOpenChange, initialName, initialGoal, initialMembers])
+  }, [open, onOpenChange, initialName, initialGoal, initialMembers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
 
@@ -106,7 +112,7 @@ export function CreateCrewDialog({
     const next = agentOptions.find((a) => !taken.has(a.name.toLowerCase()))
     setMembers((prev) => [
       ...prev,
-      { persona: next?.name.toLowerCase() ?? 'kai', role: 'executor' },
+      { persona: next?.name.toLowerCase() ?? agentOptions[0]?.name.toLowerCase() ?? '', role: 'executor' },
     ])
   }
 
@@ -219,41 +225,42 @@ export function CreateCrewDialog({
                       }
                       className="flex-1 rounded border-0 bg-transparent text-sm text-[var(--theme-text)] focus:outline-none cursor-pointer"
                     >
-                      {agentOptions.length > AGENT_PERSONAS.length && (
-                        <optgroup label="Built-in" className="bg-[var(--theme-bg)]">
-                          {agentOptions.filter((a) => a.isBuiltIn).map((a) => (
-                            <option
-                              key={a.id}
-                              value={a.name.toLowerCase()}
-                              className="bg-[var(--theme-bg)]"
-                            >
-                              {a.emoji} {a.name} — {a.roleLabel}
-                            </option>
-                          ))}
-                        </optgroup>
+                      {agentOptions.some((a) => !a.isBuiltIn) ? (
+                        <>
+                          <optgroup label="Built-in" className="bg-[var(--theme-bg)]">
+                            {agentOptions.filter((a) => a.isBuiltIn).map((a) => (
+                              <option
+                                key={a.id}
+                                value={a.name.toLowerCase()}
+                                className="bg-[var(--theme-bg)]"
+                              >
+                                {a.emoji} {a.name} — {a.roleLabel}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Custom" className="bg-[var(--theme-bg)]">
+                            {agentOptions.filter((a) => !a.isBuiltIn).map((a) => (
+                              <option
+                                key={a.id}
+                                value={a.name.toLowerCase()}
+                                className="bg-[var(--theme-bg)]"
+                              >
+                                {a.emoji} {a.name} — {a.roleLabel}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </>
+                      ) : (
+                        agentOptions.map((a) => (
+                          <option
+                            key={a.id}
+                            value={a.name.toLowerCase()}
+                            className="bg-[var(--theme-bg)]"
+                          >
+                            {a.emoji} {a.name} — {a.roleLabel}
+                          </option>
+                        ))
                       )}
-                      {agentOptions.length > AGENT_PERSONAS.length && agentOptions.some((a) => !a.isBuiltIn) && (
-                        <optgroup label="Custom" className="bg-[var(--theme-bg)]">
-                          {agentOptions.filter((a) => !a.isBuiltIn).map((a) => (
-                            <option
-                              key={a.id}
-                              value={a.name.toLowerCase()}
-                              className="bg-[var(--theme-bg)]"
-                            >
-                              {a.emoji} {a.name} — {a.roleLabel}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {agentOptions.length <= AGENT_PERSONAS.length && agentOptions.map((a) => (
-                        <option
-                          key={a.id}
-                          value={a.name.toLowerCase()}
-                          className="bg-[var(--theme-bg)]"
-                        >
-                          {a.emoji} {a.name} — {a.roleLabel}
-                        </option>
-                      ))}
                     </select>
 
                     {/* Role picker */}

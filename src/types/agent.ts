@@ -18,6 +18,8 @@ export interface AgentDefinition {
   isBuiltIn: boolean
   createdAt: number
   updatedAt: number
+  /** Advisory-only agents (e.g. GPT/Atlas) have no live dispatch path. */
+  advisory?: boolean
 }
 
 export type CreateAgentInput = {

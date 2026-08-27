@@ -7,7 +7,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
-import { AGENT_PERSONAS } from '../../../lib/agent-personas'
 import { listAgents } from '../../../server/agent-definitions-store'
 import {
   createCrew,
@@ -98,24 +97,24 @@ export const Route = createFileRoute('/api/crews/')({
           )
         }
 
-        // Load all agents (built-ins + custom) for lookup
+        // Load all agents (built-ins + custom, workspace-scoped) for lookup
         const allAgents = listAgents()
+        const fallback = allAgents.find((a) => a.isBuiltIn) ?? allAgents[0]
 
         // Build members, minting sessions in parallel
         const members = await Promise.all(
           (rawMembers as Array<Record<string, unknown>>).map(async (m) => {
             const personaName =
-              typeof m.persona === 'string' ? m.persona.toLowerCase() : 'kai'
+              typeof m.persona === 'string' ? m.persona.toLowerCase() : fallback?.name.toLowerCase() ?? ''
 
-            // Try custom/built-in agent lookup first, fall back to persona
+            // Try custom/built-in agent lookup first, fall back to default builtin
             const agentDef = allAgents.find(
               (a) => a.name.toLowerCase() === personaName,
-            )
-            const builtInFallback = AGENT_PERSONAS[6] // Kai fallback
-            const displayEmoji = agentDef?.emoji ?? builtInFallback.emoji
-            const displayName = agentDef?.name ?? builtInFallback.name
-            const roleLabel = agentDef?.roleLabel ?? builtInFallback.role
-            const color = agentDef?.color ?? builtInFallback.color
+            ) ?? fallback
+            const displayEmoji = agentDef?.emoji ?? '🤖'
+            const displayName = agentDef?.name ?? personaName
+            const roleLabel = agentDef?.roleLabel ?? 'Agent'
+            const color = agentDef?.color ?? 'text-blue-400'
 
             const model =
               agentDef?.model ??
@@ -138,6 +137,7 @@ export const Route = createFileRoute('/api/crews/')({
               color,
               model,
               profileName,
+              advisory: agentDef?.advisory === true,
             }
           }),
         )

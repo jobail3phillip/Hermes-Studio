@@ -101,6 +101,7 @@ export function DispatchDialog({
               {crew.members.map((m) => (
                 <option key={m.id} value={m.id} className="bg-[var(--theme-bg)]">
                   {m.displayName} — {m.roleLabel}
+                  {m.advisory ? ' (advisory only — no live dispatch)' : ''}
                 </option>
               ))}
             </select>

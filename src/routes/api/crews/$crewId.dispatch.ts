@@ -61,19 +61,37 @@ export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
           )
         }
 
+        // Advisory-only members (e.g. GPT/Atlas) have no live dispatch path.
+        // Route them out honestly instead of pretending they were invoked.
+        const advisoryTargets = targets.filter((m) => m.advisory === true)
+        const dispatchableTargets = targets.filter((m) => m.advisory !== true)
+
+        if (dispatchableTargets.length === 0) {
+          return json(
+            {
+              ok: false,
+              error:
+                'All targeted members are advisory-only (e.g. GPT/Atlas) and have no live dispatch path. Hand this task off manually.',
+              advisoryOnly: advisoryTargets.map((m) => m.sessionKey),
+            },
+            { status: 422 },
+          )
+        }
+
         const origin = new URL(request.url).origin
 
-        // Mark crew as active and all targeted members as running
+        // Mark crew as active and all dispatchable members as running.
+        // Advisory members are left untouched (no status change, no fake "running").
         updateCrew(params.crewId, { status: 'active' })
-        for (const member of targets) {
+        for (const member of dispatchableTargets) {
           updateMemberStatus(params.crewId, member.sessionKey, 'running')
         }
 
-        // Fire-and-forget — POST to send-stream for each target.
+        // Fire-and-forget — POST to send-stream for each real target.
         // We don't await these because send-stream is a long-running SSE response.
         // The frontend subscribes to /api/chat-events and watches for run events.
         const dispatched: string[] = []
-        for (const member of targets) {
+        for (const member of dispatchableTargets) {
           dispatched.push(member.sessionKey)
           // Non-streaming fire-and-forget to kick off the agent run
           void fetch(`${origin}/api/send-stream`, {
@@ -95,7 +113,17 @@ export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
           })
         }
 
-        return json({ ok: true, dispatched, crewId: params.crewId })
+        return json({
+          ok: true,
+          dispatched,
+          crewId: params.crewId,
+          ...(advisoryTargets.length > 0
+            ? {
+                skippedAdvisory: advisoryTargets.map((m) => m.sessionKey),
+                note: 'Advisory-only members were skipped — no live dispatch path (manual handoff required).',
+              }
+            : {}),
+        })
       },
     },
   },

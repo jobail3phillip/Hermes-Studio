@@ -19,6 +19,8 @@ export interface CrewMember {
   profileName: string | null
   status: CrewMemberStatus
   lastActivity: string | null
+  /** Advisory-only members (e.g. GPT/Atlas) have no live dispatch path. */
+  advisory?: boolean
 }
 
 export interface Crew {

@@ -10,9 +10,61 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { CrewTemplate, CrewTemplateCategory } from '../types/template'
+import { isPrimaryWorkspace } from './agent-definitions-store'
 
 const DATA_DIR = join(process.cwd(), '.runtime')
 const TEMPLATES_FILE = join(DATA_DIR, 'templates.json')
+
+// ─── Real-stack built-in templates (primary/default workspace only) ─────────
+// Members reference real execution-stack agents (cc/cx/atlas), not personas.
+
+const REAL_STACK_TEMPLATES: CrewTemplate[] = [
+  {
+    id: 'builtin-feature-build',
+    name: 'Feature Build',
+    description: 'Implement a feature with Claude Code, with Codex available for architecture review.',
+    icon: '🛠️',
+    category: 'engineering',
+    defaultGoal: 'Implement the feature end-to-end and report back with what changed and how it was verified.',
+    defaultMembers: [
+      { persona: 'cc', role: 'coordinator' },
+      { persona: 'cx', role: 'reviewer' },
+    ],
+    isBuiltIn: true,
+    tags: ['engineering', 'implementation', 'cc', 'cx'],
+    templateType: 'crew' as const,
+  },
+  {
+    id: 'builtin-architecture-review',
+    name: 'Architecture Review',
+    description: 'Codex-led review of architecture or a technical challenge, with Claude Code available for follow-up implementation.',
+    icon: '🏛️',
+    category: 'engineering',
+    defaultGoal: 'Assess the architecture / technical approach and produce a written recommendation.',
+    defaultMembers: [
+      { persona: 'cx', role: 'coordinator' },
+      { persona: 'cc', role: 'executor' },
+    ],
+    isBuiltIn: true,
+    tags: ['engineering', 'architecture', 'review', 'cx'],
+    templateType: 'crew' as const,
+  },
+  {
+    id: 'builtin-strategy-consult',
+    name: 'Strategy Consult',
+    description: 'Bring in Atlas (GPT, advisory-only) for strategic input alongside real execution from CC/CX. Atlas requires a manual handoff — no auto-dispatch.',
+    icon: '🧭',
+    category: 'operations',
+    defaultGoal: 'Gather strategic advisory input, then execute the resulting plan.',
+    defaultMembers: [
+      { persona: 'atlas', role: 'reviewer' },
+      { persona: 'cc', role: 'coordinator' },
+    ],
+    isBuiltIn: true,
+    tags: ['strategy', 'advisory', 'atlas'],
+    templateType: 'crew' as const,
+  },
+]
 
 // ─── Built-in templates (hardcoded, never persisted) ─────────────────────────
 
@@ -245,11 +297,12 @@ export function listTemplates(): CrewTemplate[] {
   const userTemplates = Object.values(store.templates).sort(
     (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
   )
-  return [...BUILT_IN_TEMPLATES, ...userTemplates]
+  const builtins = isPrimaryWorkspace() ? REAL_STACK_TEMPLATES : BUILT_IN_TEMPLATES
+  return [...builtins, ...userTemplates]
 }
 
 export function getTemplate(id: string): CrewTemplate | null {
-  const builtin = BUILT_IN_TEMPLATES.find((t) => t.id === id)
+  const builtin = [...BUILT_IN_TEMPLATES, ...REAL_STACK_TEMPLATES].find((t) => t.id === id)
   if (builtin) return builtin
   return store.templates[id] ?? null
 }
