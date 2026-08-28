@@ -88,6 +88,31 @@ const themeColorScript = `
 })()
 `
 
+const tauriCompatibilityScript = `
+(() => {
+  try {
+    const isTauri =
+      Boolean(window.__TAURI__ || window.__TAURI_INTERNALS__) ||
+      navigator.userAgent.includes('Tauri')
+    if (!isTauri) return
+
+    const root = document.documentElement
+    root.style.setProperty('scrollbar-gutter', 'stable', 'important')
+
+    const updateViewportHeight = () => {
+      root.style.setProperty('--vh', window.innerHeight * 0.01 + 'px')
+    }
+    updateViewportHeight()
+    window.addEventListener('resize', updateViewportHeight)
+
+    if (!window.requestAnimationFrame) {
+      window.requestAnimationFrame = (callback) =>
+        window.setTimeout(callback, 1000 / 60)
+    }
+  } catch {}
+})()
+`
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -244,6 +269,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: themeColorScript }} />
+        <script dangerouslySetInnerHTML={{ __html: tauriCompatibilityScript }} />
       </head>
       <body>
         <script
