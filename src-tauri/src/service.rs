@@ -4,6 +4,26 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+/// Locate a working `node` executable. GUI-launched apps (Finder/Dock, or
+/// `open`) get a minimal launchd PATH that excludes user-installed Node
+/// (nvm, homebrew, etc.), so a bare `Command::new("node")` fails silently
+/// here even though `node` resolves fine from an interactive shell.
+fn resolve_node() -> String {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    let candidates = [
+        PathBuf::from(&home).join(".hermes/node/bin/node"),
+        PathBuf::from(&home).join(".local/bin/node"),
+        PathBuf::from("/opt/homebrew/bin/node"),
+        PathBuf::from("/usr/local/bin/node"),
+    ];
+    for candidate in candidates {
+        if candidate.is_file() {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+    "node".to_string()
+}
+
 use tauri::{AppHandle, Emitter};
 
 /// Handle to the Studio Node server we may have spawned.
@@ -46,7 +66,7 @@ pub fn ensure_studio_service(app: AppHandle) {
         return;
     }
 
-    let child = match Command::new("node")
+    let child = match Command::new(resolve_node())
         .arg(&server)
         .current_dir(&dir)
         .stdout(Stdio::null())
