@@ -7,9 +7,8 @@ import { isAuthenticated } from '../../server/auth-middleware'
 import {
   ensureGatewayProbed,
   getGatewayCapabilities,
+  listModels,
 } from '../../server/hermes-api'
-
-const HERMES_API_URL = process.env.HERMES_API_URL || 'http://127.0.0.1:8642'
 
 // Well-known models for providers available via auth store
 const AUTH_STORE_MODELS: Record<string, Array<ModelEntry>> = {
@@ -109,11 +108,8 @@ function normalizeHermesModel(entry: unknown): ModelEntry | null {
   }
 }
 
-async function fetchHermesModels(): Promise<Array<ModelEntry>> {
-  const response = await fetch(`${HERMES_API_URL}/v1/models`)
-  if (!response.ok)
-    throw new Error(`Hermes models request failed (${response.status})`)
-  const payload = asRecord(await response.json())
+export async function fetchHermesModels(): Promise<Array<ModelEntry>> {
+  const payload = asRecord(await listModels())
   const rawModels = Array.isArray(payload.data)
     ? payload.data
     : Array.isArray(payload.models)

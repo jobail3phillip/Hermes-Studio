@@ -6,6 +6,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   HERMES_API,
+  authHeaders,
   ensureGatewayProbed,
   getCapabilities,
 } from '../../server/gateway-capabilities'
@@ -30,7 +31,7 @@ export const Route = createFileRoute('/api/hermes-runs')({
         const body = await request.text()
         const res = await fetch(`${HERMES_API}/v1/runs`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body,
         })
         return new Response(await res.text(), {

@@ -9,6 +9,7 @@ import {
   BEARER_TOKEN,
   HERMES_API,
   SESSIONS_API_UNAVAILABLE_MESSAGE,
+  authHeaders,
   ensureGatewayProbed,
   getCapabilities,
   probeGateway,
@@ -473,6 +474,7 @@ export async function isHermesAvailable(): Promise<boolean> {
 }
 
 export {
+  authHeaders,
   ensureGatewayProbed,
   getCapabilities as getGatewayCapabilities,
   HERMES_API,
