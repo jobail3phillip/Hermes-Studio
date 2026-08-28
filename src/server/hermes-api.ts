@@ -117,10 +117,25 @@ export async function listSessions(
   limit = 50,
   offset = 0,
 ): Promise<Array<HermesSession>> {
-  const resp = await hermesGet<{ items: Array<HermesSession>; total: number }>(
+  const resp = await hermesGet<unknown>(
     `/api/sessions?limit=${limit}&offset=${offset}`,
   )
-  return resp.items
+  if (
+    resp &&
+    typeof resp === 'object' &&
+    Array.isArray((resp as Record<string, unknown>).data)
+  ) {
+    return (resp as { data: Array<HermesSession> }).data
+  }
+  if (
+    resp &&
+    typeof resp === 'object' &&
+    Array.isArray((resp as Record<string, unknown>).items)
+  ) {
+    return (resp as { items: Array<HermesSession> }).items
+  }
+  if (Array.isArray(resp)) return resp as Array<HermesSession>
+  return []
 }
 
 export async function getSession(sessionId: string): Promise<HermesSession> {
@@ -160,10 +175,25 @@ export async function deleteSession(sessionId: string): Promise<void> {
 export async function getMessages(
   sessionId: string,
 ): Promise<Array<HermesMessage>> {
-  const resp = await hermesGet<{ items: Array<HermesMessage>; total: number }>(
+  const resp = await hermesGet<unknown>(
     `/api/sessions/${sessionId}/messages`,
   )
-  return resp.items
+  if (
+    resp &&
+    typeof resp === 'object' &&
+    Array.isArray((resp as Record<string, unknown>).data)
+  ) {
+    return (resp as { data: Array<HermesMessage> }).data
+  }
+  if (
+    resp &&
+    typeof resp === 'object' &&
+    Array.isArray((resp as Record<string, unknown>).items)
+  ) {
+    return (resp as { items: Array<HermesMessage> }).items
+  }
+  if (Array.isArray(resp)) return resp as Array<HermesMessage>
+  return []
 }
 
 export async function searchSessions(
