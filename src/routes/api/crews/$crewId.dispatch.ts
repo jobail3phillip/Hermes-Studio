@@ -40,13 +40,41 @@ import { listTasks, moveTask, updateTask } from '../../../server/task-store'
  * revisit if/when a crew can have multiple concurrently-dispatched tasks.
  */
 function markDispatchFailed(crewId: string, sessionKey: string): void {
+  moveLinkedTasks(crewId, 'review', 'dispatch-failed')
   updateMemberStatus(crewId, sessionKey, 'error')
+}
+
+/**
+ * Mark a crew member 'done' after a dispatch attempt to /api/send-stream
+ * actually completed successfully (2xx response, no SSE `event: error`
+ * marker in the body). Mirrors markDispatchFailed: moves any linked,
+ * still-in-flight Studio task ('todo'/'in_progress') to the 'done' column —
+ * same store, same linkage, just the success side of the transition that
+ * only the failure path previously implemented.
+ */
+function markDispatchSucceeded(crewId: string, sessionKey: string): void {
+  moveLinkedTasks(crewId, 'done')
+  updateMemberStatus(crewId, sessionKey, 'done')
+}
+
+/**
+ * Shared status-transition helper for both the success and failure dispatch
+ * outcomes. Moves every Studio task linked to this crew (sourceType='crew',
+ * sourceId=crewId) that's still mid-flight ('todo'/'in_progress') into the
+ * given target column, optionally tagging it (used by the failure path to
+ * flag 'dispatch-failed' distinctly from a normal review-ready task).
+ * ponytail: moves ALL in_progress/todo tasks linked to the crew, not just
+ * the one for this specific member — crew-store has no per-member task
+ * linkage today. Fine for the current 1-task-per-crew-dispatch usage;
+ * revisit if/when a crew can have multiple concurrently-dispatched tasks.
+ */
+function moveLinkedTasks(crewId: string, column: 'review' | 'done', tag?: string): void {
   const linkedTasks = listTasks({ sourceType: 'crew', sourceId: crewId })
   for (const t of linkedTasks) {
     if (t.column === 'todo' || t.column === 'in_progress') {
-      moveTask(t.id, 'review')
-      if (!t.tags.includes('dispatch-failed')) {
-        updateTask(t.id, { tags: [...t.tags, 'dispatch-failed'] })
+      moveTask(t.id, column)
+      if (tag && !t.tags.includes(tag)) {
+        updateTask(t.id, { tags: [...t.tags, tag] })
       }
     }
   }
@@ -165,6 +193,8 @@ export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
               const text = await res.text().catch(() => '')
               if (bodyIndicatesSendStreamError(text)) {
                 markDispatchFailed(crewId, member.sessionKey)
+              } else {
+                markDispatchSucceeded(crewId, member.sessionKey)
               }
             })
             .catch(() => {

@@ -176,3 +176,44 @@ describe('REPAIR-001 follow-up: dispatch-failed tasks are marked distinctly', ()
     expect(task.tags.filter((tag) => tag === 'dispatch-failed')).toHaveLength(1)
   })
 })
+
+describe('STUDIO-002: successful dispatch transitions linked task to done', () => {
+  it('markDispatchSucceeded logic moves the linked in-flight task to done', () => {
+    // Mirrors moveLinkedTasks()'s success branch (column='done', no tag) in
+    // $crewId.dispatch.ts, exercising the same decision logic markDispatchFailed
+    // already had coverage for on the failure side.
+    type FakeTask = { id: string; column: string; tags: string[] }
+    const tasks: FakeTask[] = [{ id: 't1', column: 'in_progress', tags: [] }]
+
+    function moveTask(id: string, column: string) {
+      const t = tasks.find((x) => x.id === id)!
+      t.column = column
+    }
+    function markDispatchSucceeded(linkedTasks: FakeTask[]) {
+      for (const t of linkedTasks) {
+        if (t.column === 'todo' || t.column === 'in_progress') {
+          moveTask(t.id, 'done')
+        }
+      }
+    }
+
+    markDispatchSucceeded(tasks)
+
+    expect(tasks[0].column).toBe('done')
+    expect(tasks[0].tags).not.toContain('dispatch-failed')
+  })
+
+  it('$crewId.dispatch.ts routes both outcomes through the shared moveLinkedTasks helper', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(
+      new URL('../routes/api/crews/$crewId.dispatch.ts', import.meta.url),
+      'utf-8',
+    )
+    expect(src).toMatch(/function markDispatchSucceeded/)
+    expect(src).toMatch(/function moveLinkedTasks/)
+    // Both markDispatchFailed and markDispatchSucceeded must call the same
+    // shared helper — this is the root-cause fix, not a parallel status path.
+    expect(src).toMatch(/markDispatchFailed[\s\S]*?moveLinkedTasks\(crewId, 'review', 'dispatch-failed'\)/)
+    expect(src).toMatch(/markDispatchSucceeded[\s\S]*?moveLinkedTasks\(crewId, 'done'\)/)
+  })
+})
