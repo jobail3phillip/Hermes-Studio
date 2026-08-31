@@ -9,41 +9,12 @@
  *
  * Inspired by xaspx/hermes-control-interface + karmsheel/mission-control-hermes
  */
-import { randomUUID } from 'node:crypto'
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import { getCrew, createCrew } from '../../../server/crew-store'
-import {
-  ensureGatewayProbed,
-  getGatewayCapabilities,
-  createSession,
-} from '../../../server/hermes-api'
-import {
-  ensureLocalSession,
-  toLocalSessionSummary,
-} from '../../../server/local-session-store'
-
-async function mintSession(persona: string, model: string | null): Promise<string> {
-  const friendlyId = `crew-${persona}-${randomUUID().slice(0, 8)}`
-  await ensureGatewayProbed()
-  if (getGatewayCapabilities().sessions) {
-    try {
-      const session = await createSession({
-        id: friendlyId,
-        title: `Crew: ${persona.charAt(0).toUpperCase() + persona.slice(1)}`,
-        model: model ?? undefined,
-      })
-      return session.id
-    } catch {
-      // fall through to local
-    }
-  }
-  const local = ensureLocalSession(friendlyId, model ?? undefined)
-  void toLocalSessionSummary(local)
-  return local.id
-}
+import { mintSession } from '../../../server/mint-crew-session'
 
 export const Route = createFileRoute('/api/crews/$crewId/clone')({
   server: {
@@ -60,26 +31,59 @@ export const Route = createFileRoute('/api/crews/$crewId/clone')({
           return json({ ok: false, error: 'Crew not found' }, { status: 404 })
         }
 
-        // Mint fresh sessions for every member in parallel
-        const members = await Promise.all(
-          source.members.map(async (m) => {
-            const personaForSession = m.displayName
-              .replace(/^[^\s]+\s*/, '')  // strip leading emoji+space
-              .toLowerCase()
-            const sessionKey = await mintSession(personaForSession || m.persona, m.model)
-            return {
-              sessionKey,
-              role: m.role,
-              persona: m.persona,
-              displayName: m.displayName,
-              roleLabel: m.roleLabel,
-              color: m.color,
-              model: m.model,
-              profileName: m.profileName,
-              advisory: m.advisory === true,
-            }
-          }),
-        )
+        // Mint fresh sessions for every member in parallel. A failed
+        // real-session mint for a non-advisory member is a hard failure for
+        // the whole clone — Promise.all rejects and we surface it below
+        // rather than cloning a crew with a member that can never actually
+        // be dispatched to (same contract as POST /api/crews).
+        let members: Array<{
+          sessionKey: string
+          role: (typeof source.members)[number]['role']
+          persona: string
+          displayName: string
+          roleLabel: string
+          color: string
+          model: string | null
+          profileName: string | null
+          advisory: boolean
+        }>
+        try {
+          members = await Promise.all(
+            source.members.map(async (m) => {
+              const personaForSession = m.displayName
+                .replace(/^[^\s]+\s*/, '')  // strip leading emoji+space
+                .toLowerCase()
+              const advisory = m.advisory === true
+              const sessionKey = await mintSession(
+                personaForSession || m.persona,
+                m.model,
+                advisory,
+              )
+              return {
+                sessionKey,
+                role: m.role,
+                persona: m.persona,
+                displayName: m.displayName,
+                roleLabel: m.roleLabel,
+                color: m.color,
+                model: m.model,
+                profileName: m.profileName,
+                advisory,
+              }
+            }),
+          )
+        } catch (err) {
+          return json(
+            {
+              ok: false,
+              error:
+                err instanceof Error
+                  ? err.message
+                  : 'Failed to mint a real runtime session for a crew member',
+            },
+            { status: 502 },
+          )
+        }
 
         const crew = createCrew({
           name: `Copy of ${source.name}`,

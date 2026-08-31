@@ -21,6 +21,49 @@ import {
   updateCrew,
   updateMemberStatus,
 } from '../../../server/crew-store'
+import { listTasks, moveTask, updateTask } from '../../../server/task-store'
+
+/**
+ * Mark a crew member as failed after a dispatch attempt to /api/send-stream
+ * didn't actually reach the real runtime (network error or non-2xx HTTP
+ * response). If a Studio task is linked to this crew (sourceType='crew',
+ * sourceId=crewId) and still mid-flight, move it to 'review' so a human/Axi
+ * notices instead of it silently staying "in_progress" forever.
+ *
+ * The moved task also gets a 'dispatch-failed' tag so it's visibly distinct
+ * in the review column from a normal "ready for human review" task — CX
+ * flagged that these were otherwise indistinguishable. Reuses the existing
+ * `tags` field rather than adding a schema field.
+ * ponytail: moves ALL in_progress/todo tasks linked to the crew, not just
+ * the one for this specific member — crew-store has no per-member task
+ * linkage today. Fine for the current 1-task-per-crew-dispatch usage;
+ * revisit if/when a crew can have multiple concurrently-dispatched tasks.
+ */
+function markDispatchFailed(crewId: string, sessionKey: string): void {
+  updateMemberStatus(crewId, sessionKey, 'error')
+  const linkedTasks = listTasks({ sourceType: 'crew', sourceId: crewId })
+  for (const t of linkedTasks) {
+    if (t.column === 'todo' || t.column === 'in_progress') {
+      moveTask(t.id, 'review')
+      if (!t.tags.includes('dispatch-failed')) {
+        updateTask(t.id, { tags: [...t.tags, 'dispatch-failed'] })
+      }
+    }
+  }
+}
+
+/**
+ * /api/send-stream ALWAYS resolves with HTTP 200, even on failure (e.g. a
+ * gateway 404 "Session not found") — the underlying error is only visible
+ * as a leading `event: error` line in its SSE-formatted response body. So
+ * on top of the res.ok / network-exception checks below, a 200 response
+ * body must also be scanned for that marker; otherwise this exact class of
+ * failure (the root cause the original bug report reproduced) would still
+ * slip through and leave the member falsely "running".
+ */
+function bodyIndicatesSendStreamError(text: string): boolean {
+  return /^event:\s*error\b/m.test(text)
+}
 
 export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
   server: {
@@ -93,6 +136,7 @@ export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
         const dispatched: string[] = []
         for (const member of dispatchableTargets) {
           dispatched.push(member.sessionKey)
+          const crewId = params.crewId
           // Non-streaming fire-and-forget to kick off the agent run
           void fetch(`${origin}/api/send-stream`, {
             method: 'POST',
@@ -107,10 +151,26 @@ export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
               model: member.model ?? undefined,
               stream: false,  // don't need the stream here — events flow via chat-event-bus
             }),
-          }).catch(() => {
-            // If send-stream fails, mark member as error
-            updateMemberStatus(params.crewId, member.sessionKey, 'error')
           })
+            .then(async (res) => {
+              if (!res.ok) {
+                // HTTP-level failure (rare — send-stream normally returns 200
+                // even on failure; kept as a belt-and-suspenders check).
+                markDispatchFailed(crewId, member.sessionKey)
+                return
+              }
+              // send-stream returns HTTP 200 with an SSE-formatted body even
+              // when the underlying run failed (e.g. gateway 404 "Session
+              // not found") — inspect the body for a leading error event.
+              const text = await res.text().catch(() => '')
+              if (bodyIndicatesSendStreamError(text)) {
+                markDispatchFailed(crewId, member.sessionKey)
+              }
+            })
+            .catch(() => {
+              // Network-level failure (e.g. connection refused)
+              markDispatchFailed(crewId, member.sessionKey)
+            })
         }
 
         return json({
