@@ -10,8 +10,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { getStudioRuntimeDir } from './runtime-dir'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const CREWS_FILE = join(DATA_DIR, 'crews.json')
 
 // ─── Types ───────────────────────────────────────────────────────────────────

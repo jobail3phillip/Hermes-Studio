@@ -12,8 +12,9 @@ import { randomUUID } from 'node:crypto'
 import type { AgentDefinition } from '../types/agent'
 import { AGENT_PERSONAS, REAL_STACK_AGENTS } from '../lib/agent-personas'
 import { getActiveProfileName } from './profiles-browser'
+import { getStudioRuntimeDir } from './runtime-dir'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const AGENTS_FILE = join(DATA_DIR, 'agent-definitions.json')
 
 // ─── Built-in agent definitions (derived from personas) ──────────────────────

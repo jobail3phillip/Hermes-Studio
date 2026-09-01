@@ -1,13 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getRedisClient, getRedisClientSync } from './redis-client'
+import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const SESSIONS_FILE = join(DATA_DIR, 'local-sessions.json')
 const MAX_MESSAGES_PER_SESSION = 500
 
 // Redis key prefix
-const REDIS_PREFIX = 'hermes:studio'
+const REDIS_PREFIX = `hermes:studio:${getActiveProfileName()}`
 
 export type LocalSession = {
   id: string

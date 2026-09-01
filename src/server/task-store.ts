@@ -8,6 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { getStudioRuntimeDir } from './runtime-dir'
 import type {
   HermesTask,
   CreateTaskInput,
@@ -17,7 +18,7 @@ import type {
 } from '../types/task'
 import { publishChatEvent } from './chat-event-bus'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const TASKS_FILE = join(DATA_DIR, 'tasks.json')
 
 type StoreData = { tasks: Record<string, HermesTask> }

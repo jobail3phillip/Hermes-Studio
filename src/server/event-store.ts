@@ -20,10 +20,11 @@
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { getStudioRuntimeDir } from './runtime-dir'
 
 const _require = createRequire(import.meta.url)
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const DB_PATH = join(DATA_DIR, 'events.db')
 
 const EVENT_TTL_DAYS = 7

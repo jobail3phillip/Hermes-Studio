@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { getActiveProfileName } from './profiles-browser'
 
 export type PersistedRunToolCall = {
   id: string
@@ -33,7 +34,11 @@ export type PersistedRunState = {
   errorMessage?: string
 }
 
-const RUNS_ROOT = path.join(homedir(), '.hermes', 'webui-mvp', 'runs')
+const _profile = getActiveProfileName()
+const RUNS_ROOT =
+  _profile === 'default'
+    ? path.join(homedir(), '.hermes', 'webui-mvp', 'runs')
+    : path.join(homedir(), '.hermes', 'profiles', _profile, '.studio-runtime', 'runs')
 
 function encodeSessionKey(sessionKey: string): string {
   return encodeURIComponent(sessionKey || 'main')

@@ -9,8 +9,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CrewUsage, CostStoreData } from '../types/cost'
+import { getStudioRuntimeDir } from './runtime-dir'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const COSTS_FILE = join(DATA_DIR, 'costs.json')
 
 // ─── Price table ($ per 1M tokens, as of April 2026) ─────────────────────────

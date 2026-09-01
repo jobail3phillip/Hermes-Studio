@@ -9,9 +9,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { getStudioRuntimeDir } from './runtime-dir'
 import type { Workflow, WorkflowTask, WorkflowEdge } from '../types/workflow'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const WORKFLOWS_FILE = join(DATA_DIR, 'workflows.json')
 
 type StoreData = { workflows: Record<string, Workflow> }

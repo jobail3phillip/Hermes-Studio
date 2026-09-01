@@ -9,10 +9,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { getStudioRuntimeDir } from './runtime-dir'
 import type { CrewTemplate, CrewTemplateCategory } from '../types/template'
 import { isPrimaryWorkspace } from './agent-definitions-store'
 
-const DATA_DIR = join(process.cwd(), '.runtime')
+const DATA_DIR = getStudioRuntimeDir()
 const TEMPLATES_FILE = join(DATA_DIR, 'templates.json')
 
 // ─── Real-stack built-in templates (primary/default workspace only) ─────────
