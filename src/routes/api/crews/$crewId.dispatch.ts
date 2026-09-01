@@ -21,7 +21,7 @@ import {
   updateCrew,
   updateMemberStatus,
 } from '../../../server/crew-store'
-import { listTasks, moveTask, updateTask } from '../../../server/task-store'
+import { createTask, listTasks, moveTask, updateTask } from '../../../server/task-store'
 
 /**
  * Mark a crew member as failed after a dispatch attempt to /api/send-stream
@@ -68,6 +68,35 @@ function markDispatchSucceeded(crewId: string, sessionKey: string): void {
  * linkage today. Fine for the current 1-task-per-crew-dispatch usage;
  * revisit if/when a crew can have multiple concurrently-dispatched tasks.
  */
+/**
+ * STUDIO-010: dispatch previously only ever *transitioned* an already-linked
+ * task (see moveLinkedTasks below) — it never created one. CC/CX dispatches
+ * only ended up with task.created/task.moved trails because someone manually
+ * POSTed /api/tasks with sourceType='crew'/sourceId=crewId BEFORE calling
+ * dispatch, in every test run investigated. That manual pre-step has no
+ * persona branching (this whole route has none), so any persona's dispatch —
+ * Runner included — silently produces zero task-store/event-log records if
+ * that pre-step is skipped, which is exactly what happened for the Runner
+ * Acceptance Test dispatch. Root-cause fix: dispatch ensures a linked task
+ * exists itself, so persistence no longer depends on an out-of-band manual
+ * step for any persona. If a linked task already sits in 'todo'/'in_progress'
+ * (the existing manual-pre-create flow CC/CX tests used), reuse it — dispatch
+ * behavior for that case is unchanged from before this fix.
+ */
+function ensureLinkedTask(crewId: string, taskPrompt: string): void {
+  const linkedTasks = listTasks({ sourceType: 'crew', sourceId: crewId })
+  const hasInFlight = linkedTasks.some(
+    (t) => t.column === 'todo' || t.column === 'in_progress',
+  )
+  if (hasInFlight) return
+  createTask({
+    title: taskPrompt.slice(0, 200),
+    column: 'in_progress',
+    sourceType: 'crew',
+    sourceId: crewId,
+  })
+}
+
 function moveLinkedTasks(crewId: string, column: 'review' | 'done', tag?: string): void {
   const linkedTasks = listTasks({ sourceType: 'crew', sourceId: crewId })
   for (const t of linkedTasks) {
@@ -150,6 +179,11 @@ export const Route = createFileRoute('/api/crews/$crewId/dispatch')({
         }
 
         const origin = new URL(request.url).origin
+
+        // STUDIO-010: guarantee a task-store/event-log record exists for
+        // this dispatch, regardless of persona. No-op if a task is already
+        // linked and in-flight (the pre-existing manual-pre-create flow).
+        ensureLinkedTask(params.crewId, task)
 
         // Mark crew as active and all dispatchable members as running.
         // Advisory members are left untouched (no status change, no fake "running").
