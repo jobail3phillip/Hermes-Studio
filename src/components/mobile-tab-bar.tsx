@@ -94,7 +94,7 @@ const TABS: Array<TabItem> = [
   },
   {
     id: 'profiles',
-    label: 'Profiles',
+    label: 'Workspaces',
     icon: UserGroupIcon,
     to: '/profiles',
     match: (p) => p.startsWith('/profiles'),

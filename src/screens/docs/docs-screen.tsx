@@ -288,9 +288,9 @@ export function DocsScreen() {
                 <td style={tdStyle}>Skill registry browser with 2000+ available skills from skillsmp.com. Install, uninstall, enable/disable skills, view documentation, and search the hub for new capabilities.</td>
               </tr>
               <tr>
-                <td style={tdStyle}><strong>Profiles</strong></td>
+                <td style={tdStyle}><strong>Workspaces</strong></td>
                 <td style={tdCodeStyle}>/profiles</td>
-                <td style={tdStyle}>Profile management for switching between different gateway configurations. Create, rename, activate, and delete profiles. Each profile maintains independent settings, memory files, and skill installations.</td>
+                <td style={tdStyle}>Workspace management for switching between different gateway configurations. Create, rename, activate, and delete workspaces. Each workspace maintains independent settings, memory files, and skill installations.</td>
               </tr>
               <tr>
                 <td style={tdStyle}><strong>Settings</strong></td>
@@ -1049,7 +1049,7 @@ export function DocsScreen() {
             </tbody>
           </table>
 
-          <h3 style={h3Style}>Profiles</h3>
+          <h3 style={h3Style}>Workspaces</h3>
           <table style={tableStyle}>
             <thead>
               <tr><th style={thStyle}>Method</th><th style={thStyle}>Path</th><th style={thStyle}>Description</th></tr>

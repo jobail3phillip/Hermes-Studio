@@ -201,13 +201,13 @@ export function ProfilesScreen() {
         ...(wizardModel ? { model: wizardModel } : {}),
         ...(wizardProvider ? { provider: wizardProvider } : {}),
       })
-      toast(`Created profile ${newProfileName.trim()}`, { type: 'success' })
+      toast(`Created workspace ${newProfileName.trim()}`, { type: 'success' })
       setCreateOpen(false)
       resetWizard()
       await refreshProfiles()
     } catch (error) {
       toast(
-        error instanceof Error ? error.message : 'Failed to create profile',
+        error instanceof Error ? error.message : 'Failed to create workspace',
         { type: 'error' },
       )
     } finally {
@@ -219,11 +219,11 @@ export function ProfilesScreen() {
     setBusyName(name)
     try {
       await postJson('/api/profiles/activate', { name })
-      toast(`Activated profile ${name}`, { type: 'success' })
+      toast(`Activated workspace ${name}`, { type: 'success' })
       await refreshProfiles()
     } catch (error) {
       toast(
-        error instanceof Error ? error.message : 'Failed to activate profile',
+        error instanceof Error ? error.message : 'Failed to activate workspace',
         { type: 'error' },
       )
     } finally {
@@ -234,17 +234,17 @@ export function ProfilesScreen() {
   async function handleDelete(name: string) {
     if (
       typeof window !== 'undefined' &&
-      !window.confirm(`Delete profile ${name}?`)
+      !window.confirm(`Delete workspace ${name}?`)
     )
       return
     setBusyName(name)
     try {
       await postJson('/api/profiles/delete', { name })
-      toast(`Deleted profile ${name}`, { type: 'success' })
+      toast(`Deleted workspace ${name}`, { type: 'success' })
       await refreshProfiles()
     } catch (error) {
       toast(
-        error instanceof Error ? error.message : 'Failed to delete profile',
+        error instanceof Error ? error.message : 'Failed to delete workspace',
         { type: 'error' },
       )
     } finally {
@@ -268,7 +268,7 @@ export function ProfilesScreen() {
       await refreshProfiles()
     } catch (error) {
       toast(
-        error instanceof Error ? error.message : 'Failed to rename profile',
+        error instanceof Error ? error.message : 'Failed to rename workspace',
         { type: 'error' },
       )
     } finally {
@@ -282,16 +282,16 @@ export function ProfilesScreen() {
         <div>
           <div className="flex items-center gap-2">
             <HugeiconsIcon icon={UserGroupIcon} size={22} strokeWidth={1.7} />
-            <h1 className="text-lg font-semibold text-primary-900">Profiles</h1>
+            <h1 className="text-lg font-semibold text-primary-900">Workspaces</h1>
           </div>
           <p className="mt-1 text-sm text-[var(--theme-muted)]">
-            Browse and manage Hermes profiles stored under{' '}
+            Browse and manage Hermes workspaces stored under{' '}
             <span className="font-mono">~/.hermes/profiles</span>.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="gap-2">
           <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.8} />
-          Create profile
+          Create workspace
         </Button>
       </div>
 
@@ -453,7 +453,7 @@ export function ProfilesScreen() {
 
       {sorted.length === 0 && !profilesQuery.isLoading ? (
         <div className="rounded-2xl border border-dashed border-[var(--theme-border)] bg-[var(--theme-bg)]/70 p-8 text-center text-sm text-[var(--theme-muted)]">
-          No named profiles found yet. The active profile is{' '}
+          No named workspaces found yet. The active workspace is{' '}
           <span className="font-semibold">{activeProfile}</span>.
         </div>
       ) : null}
@@ -474,7 +474,7 @@ export function ProfilesScreen() {
               </div>
               <div>
                 <DialogTitle className="text-base font-semibold">
-                  Create profile
+                  Create workspace
                 </DialogTitle>
                 <p className="mt-0.5 text-xs text-primary-500 dark:text-neutral-400">
                   {wizardStep === 1
@@ -531,7 +531,7 @@ export function ProfilesScreen() {
               <div className="space-y-5">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-[var(--theme-muted)] dark:text-neutral-400">
-                    Profile name
+                    Workspace name
                   </label>
                   <Input
                     value={newProfileName}
@@ -586,7 +586,7 @@ export function ProfilesScreen() {
 
                 <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/60 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
                   <p className="text-xs text-primary-500 dark:text-neutral-400">
-                    Profiles are stored under{' '}
+                    Workspaces are stored under{' '}
                     <code className="rounded bg-primary-100 px-1 py-0.5 font-mono text-[11px] dark:bg-neutral-800">
                       ~/.hermes/profiles/&lt;name&gt;/
                     </code>{' '}
@@ -654,7 +654,7 @@ export function ProfilesScreen() {
               <div className="space-y-4">
                 <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-panel)] p-4 dark:border-neutral-800 dark:bg-neutral-900/60">
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary-500 dark:text-neutral-400">
-                    Profile summary
+                    Workspace summary
                   </h3>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <SummaryField label="Name" value={newProfileName.trim()} />
@@ -739,7 +739,7 @@ export function ProfilesScreen() {
                     size={14}
                     strokeWidth={1.8}
                   />
-                  Create Profile
+                  Create Workspace
                 </Button>
               )}
             </div>
@@ -764,7 +764,7 @@ export function ProfilesScreen() {
               </div>
               <div>
                 <DialogTitle className="text-base font-semibold">
-                  Rename profile
+                  Rename workspace
                 </DialogTitle>
                 <p className="mt-0.5 text-xs text-primary-500 dark:text-neutral-400">
                   Renaming{' '}
@@ -839,7 +839,7 @@ export function ProfilesScreen() {
                   {detailsName}
                 </DialogTitle>
                 <p className="mt-0.5 text-xs text-primary-500 dark:text-neutral-400">
-                  Profile details &amp; configuration
+                  Workspace details &amp; configuration
                 </p>
               </div>
             </div>

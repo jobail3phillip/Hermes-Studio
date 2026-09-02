@@ -524,7 +524,7 @@ function ChatSidebarComponent({
     pathname === '/new' || pathname.startsWith('/chat/new')
   const _isSettingsActive = pathname === '/settings'
   const isSkillsActive = pathname === '/skills'
-  const isProfilesActive = pathname === '/profiles'
+  const isWorkspacesActive = pathname === '/profiles'
   const isFilesActive = pathname === '/files'
   const isTerminalActive = pathname === '/terminal'
   const isJobsActive = pathname === '/jobs'
@@ -849,6 +849,13 @@ function ChatSidebarComponent({
       label: 'Logs',
       active: isLogsActive,
     },
+    {
+      kind: 'link',
+      to: '/profiles',
+      icon: UserGroupIcon,
+      label: 'Workspaces',
+      active: isWorkspacesActive,
+    },
   ]
 
   const knowledgeItems: Array<NavItemDef> = [
@@ -866,13 +873,6 @@ function ChatSidebarComponent({
       label: 'Skills',
       active: isSkillsActive,
       dataTour: 'skills',
-    },
-    {
-      kind: 'link',
-      to: '/profiles',
-      icon: UserGroupIcon,
-      label: 'Profiles',
-      active: isProfilesActive,
     },
   ]
 

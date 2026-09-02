@@ -67,7 +67,7 @@ const NAV_ITEMS = [
   },
   {
     id: 'profiles',
-    label: 'Profiles',
+    label: 'Workspaces',
     icon: UserGroupIcon,
     to: '/profiles',
     match: (p: string) => p.startsWith('/profiles'),
