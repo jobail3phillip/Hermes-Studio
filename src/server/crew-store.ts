@@ -11,9 +11,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 
-const DATA_DIR = getStudioRuntimeDir()
-const CREWS_FILE = join(DATA_DIR, 'crews.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function crewsFile(): string { return join(dataDir(), 'crews.json') }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -58,8 +59,9 @@ let store: StoreData = { crews: {} }
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(CREWS_FILE)) {
-      const raw = readFileSync(CREWS_FILE, 'utf-8')
+    const file = crewsFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
       if (parsed?.crews && typeof parsed.crews === 'object') {
         store = parsed
@@ -72,8 +74,9 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(CREWS_FILE, JSON.stringify(store, null, 2))
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(crewsFile(), JSON.stringify(store, null, 2))
   } catch {
     // ignore write failure — in-memory is still consistent
   }
@@ -88,16 +91,24 @@ function scheduleSave(): void {
   }, 1_000)
 }
 
-// Bootstrap on module load
-loadFromDisk()
+let loadedForProfile: string | null = null
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { crews: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export function listCrews(): Crew[] {
+  ensureLoaded()
   return Object.values(store.crews).sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 export function getCrew(crewId: string): Crew | null {
+  ensureLoaded()
   return store.crews[crewId] ?? null
 }
 
@@ -106,6 +117,7 @@ export function createCrew(input: {
   goal: string
   members: Array<Omit<CrewMember, 'id' | 'status' | 'lastActivity'> & { profileName?: string | null }>
 }): Crew {
+  ensureLoaded()
   const now = Date.now()
   const crew: Crew = {
     id: randomUUID(),
@@ -131,6 +143,7 @@ export function updateCrew(
   crewId: string,
   updates: Partial<Pick<Crew, 'name' | 'goal' | 'status'>>,
 ): Crew | null {
+  ensureLoaded()
   const crew = store.crews[crewId]
   if (!crew) return null
   Object.assign(crew, { ...updates, updatedAt: Date.now() })
@@ -144,6 +157,7 @@ export function updateMemberStatus(
   status: CrewMemberStatus,
   lastActivity?: string,
 ): void {
+  ensureLoaded()
   const crew = store.crews[crewId]
   if (!crew) return
   const member = crew.members.find((m) => m.sessionKey === sessionKey)
@@ -155,6 +169,7 @@ export function updateMemberStatus(
 }
 
 export function deleteCrew(crewId: string): boolean {
+  ensureLoaded()
   if (!store.crews[crewId]) return false
   delete store.crews[crewId]
   saveToDisk()

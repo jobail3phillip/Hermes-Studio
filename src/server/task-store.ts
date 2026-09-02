@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 import type {
   HermesTask,
   CreateTaskInput,
@@ -18,8 +19,8 @@ import type {
 } from '../types/task'
 import { publishChatEvent } from './chat-event-bus'
 
-const DATA_DIR = getStudioRuntimeDir()
-const TASKS_FILE = join(DATA_DIR, 'tasks.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function tasksFile(): string { return join(dataDir(), 'tasks.json') }
 
 type StoreData = { tasks: Record<string, HermesTask> }
 
@@ -32,11 +33,13 @@ export interface TaskFilter {
 }
 
 let store: StoreData = { tasks: {} }
+let loadedForProfile: string | null = null
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(TASKS_FILE)) {
-      const raw = readFileSync(TASKS_FILE, 'utf-8')
+    const file = tasksFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
       if (parsed?.tasks && typeof parsed.tasks === 'object') {
         store = parsed
@@ -47,8 +50,9 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(TASKS_FILE, JSON.stringify(store, null, 2))
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(tasksFile(), JSON.stringify(store, null, 2))
   } catch { /* ignore write failure */ }
 }
 
@@ -58,9 +62,16 @@ function scheduleSave(): void {
   _saveTimer = setTimeout(() => { _saveTimer = null; saveToDisk() }, 1_000)
 }
 
-loadFromDisk()
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { tasks: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
 
 export function listTasks(filter?: TaskFilter): HermesTask[] {
+  ensureLoaded()
   let tasks = Object.values(store.tasks)
   if (filter?.column) tasks = tasks.filter((t) => t.column === filter.column)
   if (filter?.assignee) tasks = tasks.filter((t) => t.assignee === filter.assignee)
@@ -71,10 +82,12 @@ export function listTasks(filter?: TaskFilter): HermesTask[] {
 }
 
 export function getTask(taskId: string): HermesTask | null {
+  ensureLoaded()
   return store.tasks[taskId] ?? null
 }
 
 export function createTask(input: CreateTaskInput): HermesTask {
+  ensureLoaded()
   const now = Date.now()
   const task: HermesTask = {
     id: randomUUID(),
@@ -99,6 +112,7 @@ export function createTask(input: CreateTaskInput): HermesTask {
 }
 
 export function updateTask(taskId: string, updates: UpdateTaskInput): HermesTask | null {
+  ensureLoaded()
   const task = store.tasks[taskId]
   if (!task) return null
   if (updates.title !== undefined) task.title = updates.title.trim()
@@ -123,6 +137,7 @@ export function moveTask(taskId: string, column: TaskColumn): HermesTask | null 
 }
 
 export function deleteTask(taskId: string): boolean {
+  ensureLoaded()
   if (!store.tasks[taskId]) return false
   delete store.tasks[taskId]
   saveToDisk()

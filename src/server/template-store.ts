@@ -10,11 +10,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 import type { CrewTemplate, CrewTemplateCategory } from '../types/template'
 import { isPrimaryWorkspace } from './agent-definitions-store'
 
-const DATA_DIR = getStudioRuntimeDir()
-const TEMPLATES_FILE = join(DATA_DIR, 'templates.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function templatesFile(): string { return join(dataDir(), 'templates.json') }
 
 // ─── Real-stack built-in templates (primary/default workspace only) ─────────
 // Members reference real execution-stack agents (cc/cx/atlas), not personas.
@@ -267,8 +268,9 @@ let store: StoreData = { templates: {} }
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(TEMPLATES_FILE)) {
-      const raw = readFileSync(TEMPLATES_FILE, 'utf-8')
+    const file = templatesFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
       if (parsed?.templates && typeof parsed.templates === 'object') {
         store = parsed
@@ -281,20 +283,28 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(TEMPLATES_FILE, JSON.stringify(store, null, 2))
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(templatesFile(), JSON.stringify(store, null, 2))
   } catch {
     // ignore write failure — in-memory is still consistent
   }
 }
 
-// Bootstrap on module load
-loadFromDisk()
+let loadedForProfile: string | null = null
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { templates: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /** Returns all templates: built-ins first (declaration order), then user templates newest-first. */
 export function listTemplates(): CrewTemplate[] {
+  ensureLoaded()
   const userTemplates = Object.values(store.templates).sort(
     (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
   )
@@ -303,6 +313,7 @@ export function listTemplates(): CrewTemplate[] {
 }
 
 export function getTemplate(id: string): CrewTemplate | null {
+  ensureLoaded()
   const builtin = [...BUILT_IN_TEMPLATES, ...REAL_STACK_TEMPLATES].find((t) => t.id === id)
   if (builtin) return builtin
   return store.templates[id] ?? null
@@ -319,6 +330,7 @@ export function createUserTemplate(input: {
   templateType?: CrewTemplate['templateType']
   conductorConfig?: CrewTemplate['conductorConfig']
 }): CrewTemplate {
+  ensureLoaded()
   const template: CrewTemplate = {
     id: `user-${randomUUID()}`,
     ...input,
