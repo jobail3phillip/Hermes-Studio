@@ -21,11 +21,12 @@ import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 
 const _require = createRequire(import.meta.url)
 
-const DATA_DIR = getStudioRuntimeDir()
-const DB_PATH = join(DATA_DIR, 'events.db')
+function dataDir(): string { return getStudioRuntimeDir() }
+function dbPath(): string { return join(dataDir(), 'events.db') }
 
 const EVENT_TTL_DAYS = 7
 const MAX_EVENTS_PER_SESSION = 10_000
@@ -54,10 +55,44 @@ export interface StoredEvent {
 
 let _db: SqliteDb | null = null
 let _initAttempted = false
+let _dbForProfile: string | null = null
 
+// ponytail: single-process, no per-request profile pinning — a request in
+// flight during a profile switch may observe the new profile's data
+// mid-request. Acceptable for single-user manual switching; revisit with
+// request-scoped profile context if Studio ever serves concurrent
+// multi-profile traffic.
 function getDb(): SqliteDb | null {
+  const activeProfile = getActiveProfileName()
+
+  // Profile switched since we last opened (or first call) — close the old
+  // handle (if any) and reopen fresh at the newly-resolved DB_PATH. This
+  // check runs synchronously at the top of getDb() before any query
+  // proceeds. Because this codebase is single-process/single-threaded JS
+  // with no true parallel DB access, any query already holding a reference
+  // to the old `db` handle (captured as a local inside an exported function
+  // before this check ran) completes its synchronous better-sqlite3 calls
+  // before the event loop can pick up the next call to getDb() that would
+  // trigger a reopen — there is no interleaving window mid-query. The only
+  // reachable race is call-boundary ordering (which request's getDb() call
+  // happens to run first after a switch), not a handle being closed out
+  // from under an in-flight synchronous query.
+  if (_dbForProfile !== null && _dbForProfile !== activeProfile) {
+    try {
+      _db?.close()
+    } catch {
+      // already closed / close failed — fall through and reopen anyway
+    }
+    _db = null
+    _initAttempted = false
+  }
+
   if (_initAttempted) return _db
   _initAttempted = true
+  _dbForProfile = activeProfile
+
+  const DATA_DIR = dataDir()
+  const DB_PATH = dbPath()
 
   try {
     mkdirSync(DATA_DIR, { recursive: true })

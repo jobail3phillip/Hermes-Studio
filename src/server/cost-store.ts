@@ -10,9 +10,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CrewUsage, CostStoreData } from '../types/cost'
 import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 
-const DATA_DIR = getStudioRuntimeDir()
-const COSTS_FILE = join(DATA_DIR, 'costs.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function costsFile(): string { return join(dataDir(), 'costs.json') }
 
 // ─── Price table ($ per 1M tokens, as of April 2026) ─────────────────────────
 
@@ -77,8 +78,9 @@ let store: CostStoreData = { crews: {} }
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(COSTS_FILE)) {
-      const raw = readFileSync(COSTS_FILE, 'utf-8')
+    const file = costsFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as CostStoreData
       if (parsed?.crews && typeof parsed.crews === 'object') {
         store = parsed
@@ -91,8 +93,9 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(COSTS_FILE, JSON.stringify(store, null, 2))
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(costsFile(), JSON.stringify(store, null, 2))
   } catch {
     // ignore write failure — in-memory is still consistent
   }
@@ -107,12 +110,19 @@ function scheduleSave(): void {
   }, 1_000)
 }
 
-// Bootstrap on module load
-loadFromDisk()
+let loadedForProfile: string | null = null
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { crews: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function getCrewUsage(crewId: string): CrewUsage | null {
+  ensureLoaded()
   return store.crews[crewId] ?? null
 }
 
@@ -129,6 +139,7 @@ export function recordMemberUsage(
   inputTokens: number,
   outputTokens: number,
 ): CrewUsage {
+  ensureLoaded()
   const existing = store.crews[crewId] ?? {
     crewId,
     members: {},
@@ -168,11 +179,13 @@ export function recordMemberUsage(
 }
 
 export function resetCrewUsage(crewId: string): void {
+  ensureLoaded()
   delete store.crews[crewId]
   scheduleSave()
 }
 
 export function deleteCrewUsage(crewId: string): void {
+  ensureLoaded()
   delete store.crews[crewId]
   saveToDisk()
 }

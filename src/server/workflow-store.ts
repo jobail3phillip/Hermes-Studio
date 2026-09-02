@@ -10,10 +10,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getStudioRuntimeDir } from './runtime-dir'
+import { getActiveProfileName } from './profiles-browser'
 import type { Workflow, WorkflowTask, WorkflowEdge } from '../types/workflow'
 
-const DATA_DIR = getStudioRuntimeDir()
-const WORKFLOWS_FILE = join(DATA_DIR, 'workflows.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function workflowsFile(): string { return join(dataDir(), 'workflows.json') }
 
 type StoreData = { workflows: Record<string, Workflow> }
 
@@ -23,8 +24,9 @@ let store: StoreData = { workflows: {} }
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(WORKFLOWS_FILE)) {
-      const raw = readFileSync(WORKFLOWS_FILE, 'utf-8')
+    const file = workflowsFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
       if (parsed?.workflows && typeof parsed.workflows === 'object') {
         // Ensure x/y have defaults (guard against old data missing position fields)
@@ -45,8 +47,9 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(WORKFLOWS_FILE, JSON.stringify(store, null, 2))
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(workflowsFile(), JSON.stringify(store, null, 2))
   } catch {
     // ignore write failure — in-memory is still consistent
   }
@@ -61,12 +64,19 @@ function scheduleSave(): void {
   }, 1_000)
 }
 
-// Bootstrap on module load
-loadFromDisk()
+let loadedForProfile: string | null = null
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { workflows: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export function getWorkflow(crewId: string): Workflow | null {
+  ensureLoaded()
   return store.workflows[crewId] ?? null
 }
 
@@ -74,6 +84,7 @@ export function upsertWorkflow(
   crewId: string,
   patch: { tasks: WorkflowTask[]; edges: WorkflowEdge[] },
 ): Workflow {
+  ensureLoaded()
   const existing = store.workflows[crewId]
   const now = Date.now()
   const workflow: Workflow = existing
@@ -92,6 +103,7 @@ export function upsertWorkflow(
 }
 
 export function deleteWorkflow(crewId: string): boolean {
+  ensureLoaded()
   if (!store.workflows[crewId]) return false
   delete store.workflows[crewId]
   saveToDisk()

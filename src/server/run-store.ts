@@ -34,18 +34,19 @@ export type PersistedRunState = {
   errorMessage?: string
 }
 
-const _profile = getActiveProfileName()
-const RUNS_ROOT =
-  _profile === 'default'
+function runsRoot(): string {
+  const profile = getActiveProfileName()
+  return profile === 'default'
     ? path.join(homedir(), '.hermes', 'webui-mvp', 'runs')
-    : path.join(homedir(), '.hermes', 'profiles', _profile, '.studio-runtime', 'runs')
+    : path.join(homedir(), '.hermes', 'profiles', profile, '.studio-runtime', 'runs')
+}
 
 function encodeSessionKey(sessionKey: string): string {
   return encodeURIComponent(sessionKey || 'main')
 }
 
 function sessionDir(sessionKey: string): string {
-  return path.join(RUNS_ROOT, encodeSessionKey(sessionKey))
+  return path.join(runsRoot(), encodeSessionKey(sessionKey))
 }
 
 function runPath(sessionKey: string, runId: string): string {

@@ -14,8 +14,8 @@ import { AGENT_PERSONAS, REAL_STACK_AGENTS } from '../lib/agent-personas'
 import { getActiveProfileName } from './profiles-browser'
 import { getStudioRuntimeDir } from './runtime-dir'
 
-const DATA_DIR = getStudioRuntimeDir()
-const AGENTS_FILE = join(DATA_DIR, 'agent-definitions.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function agentsFile(): string { return join(dataDir(), 'agent-definitions.json') }
 
 // ─── Built-in agent definitions (derived from personas) ──────────────────────
 
@@ -91,8 +91,9 @@ let store: StoreData = { agents: {} }
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(AGENTS_FILE)) {
-      const raw = readFileSync(AGENTS_FILE, 'utf-8')
+    const file = agentsFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
       if (parsed && typeof parsed.agents === 'object') {
         store = parsed
@@ -105,25 +106,35 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(AGENTS_FILE, JSON.stringify(store, null, 2), 'utf-8')
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(agentsFile(), JSON.stringify(store, null, 2), 'utf-8')
   } catch {
     // ignore write errors
   }
 }
 
-loadFromDisk()
+let loadedForProfile: string | null = null
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { agents: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** List all agents: built-ins first, then user-created sorted by newest. */
 export function listAgents(): AgentDefinition[] {
+  ensureLoaded()
   const custom = Object.values(store.agents).sort((a, b) => b.createdAt - a.createdAt)
   return [...getBuiltInAgents(), ...custom]
 }
 
 /** Get a single agent by id (built-in or custom). */
 export function getAgent(id: string): AgentDefinition | null {
+  ensureLoaded()
   if (id.startsWith('builtin-')) {
     return getBuiltInAgents().find((a) => a.id === id) ?? null
   }
@@ -140,6 +151,7 @@ export function createAgent(input: {
   model: string | null
   tags: string[]
 }): AgentDefinition {
+  ensureLoaded()
   const id = randomUUID()
   const now = Date.now()
   const agent: AgentDefinition = {
@@ -167,6 +179,7 @@ export function updateAgent(
     tags: string[]
   }>,
 ): AgentDefinition | null {
+  ensureLoaded()
   const existing = store.agents[id]
   if (!existing) return null
   const updated: AgentDefinition = {
@@ -181,6 +194,7 @@ export function updateAgent(
 
 /** Delete a custom agent. Built-ins cannot be deleted. */
 export function deleteAgent(id: string): boolean {
+  ensureLoaded()
   if (!store.agents[id]) return false
   delete store.agents[id]
   saveToDisk()

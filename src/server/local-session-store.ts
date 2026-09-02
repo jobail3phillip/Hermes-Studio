@@ -4,12 +4,13 @@ import { getRedisClient, getRedisClientSync } from './redis-client'
 import { getStudioRuntimeDir } from './runtime-dir'
 import { getActiveProfileName } from './profiles-browser'
 
-const DATA_DIR = getStudioRuntimeDir()
-const SESSIONS_FILE = join(DATA_DIR, 'local-sessions.json')
+function dataDir(): string { return getStudioRuntimeDir() }
+function sessionsFile(): string { return join(dataDir(), 'local-sessions.json') }
 const MAX_MESSAGES_PER_SESSION = 500
 
-// Redis key prefix
-const REDIS_PREFIX = `hermes:studio:${getActiveProfileName()}`
+// Redis key prefix — resolved per-call so a live profile switch takes effect
+// immediately (see redisPrefix() call sites below).
+function redisPrefix(): string { return `hermes:studio:${getActiveProfileName()}` }
 
 export type LocalSession = {
   id: string
@@ -43,8 +44,9 @@ let store: StoreData = { sessions: {}, messages: {} }
 
 function loadFromDisk(): void {
   try {
-    if (existsSync(SESSIONS_FILE)) {
-      const raw = readFileSync(SESSIONS_FILE, 'utf-8')
+    const file = sessionsFile()
+    if (existsSync(file)) {
+      const raw = readFileSync(file, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
       if (parsed.sessions && parsed.messages) {
         store = parsed
@@ -57,8 +59,9 @@ function loadFromDisk(): void {
 
 function saveToDisk(): void {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
-    writeFileSync(SESSIONS_FILE, JSON.stringify(store, null, 2))
+    const dir = dataDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(sessionsFile(), JSON.stringify(store, null, 2))
   } catch {
     // ignore cache write failures
   }
@@ -69,12 +72,13 @@ function saveToDisk(): void {
 
 async function loadFromRedis(client: import('ioredis').Redis): Promise<void> {
   try {
-    const sessionKeys = await client.hkeys(`${REDIS_PREFIX}:sessions`)
+    const prefix = redisPrefix()
+    const sessionKeys = await client.hkeys(`${prefix}:sessions`)
     const sessions: Record<string, LocalSession> = {}
     const messages: Record<string, Array<LocalMessage>> = {}
 
     for (const sid of sessionKeys) {
-      const raw = await client.hget(`${REDIS_PREFIX}:sessions`, sid)
+      const raw = await client.hget(`${prefix}:sessions`, sid)
       if (raw) {
         try {
           sessions[sid] = JSON.parse(raw) as LocalSession
@@ -82,7 +86,7 @@ async function loadFromRedis(client: import('ioredis').Redis): Promise<void> {
           // skip corrupt entry
         }
       }
-      const msgs = await client.lrange(`${REDIS_PREFIX}:messages:${sid}`, 0, -1)
+      const msgs = await client.lrange(`${prefix}:messages:${sid}`, 0, -1)
       messages[sid] = msgs.flatMap((m) => {
         try {
           return [JSON.parse(m) as LocalMessage]
@@ -107,13 +111,14 @@ async function saveSessionToRedis(
   session: LocalSession,
 ): Promise<void> {
   try {
+    const prefix = redisPrefix()
     await client.hset(
-      `${REDIS_PREFIX}:sessions`,
+      `${prefix}:sessions`,
       session.id,
       JSON.stringify(session),
     )
     // 30-day TTL on the sessions hash key
-    await client.expire(`${REDIS_PREFIX}:sessions`, 60 * 60 * 24 * 30)
+    await client.expire(`${prefix}:sessions`, 60 * 60 * 24 * 30)
   } catch {
     // ignore Redis write failures
   }
@@ -125,7 +130,7 @@ async function appendMessageToRedis(
   message: LocalMessage,
 ): Promise<void> {
   try {
-    const key = `${REDIS_PREFIX}:messages:${sessionId}`
+    const key = `${redisPrefix()}:messages:${sessionId}`
     await client.rpush(key, JSON.stringify(message))
     await client.ltrim(key, -MAX_MESSAGES_PER_SESSION, -1)
     await client.expire(key, 60 * 60 * 24 * 30)
@@ -139,8 +144,9 @@ async function deleteSessionFromRedis(
   sessionId: string,
 ): Promise<void> {
   try {
-    await client.hdel(`${REDIS_PREFIX}:sessions`, sessionId)
-    await client.del(`${REDIS_PREFIX}:messages:${sessionId}`)
+    const prefix = redisPrefix()
+    await client.hdel(`${prefix}:sessions`, sessionId)
+    await client.del(`${prefix}:messages:${sessionId}`)
   } catch {
     // ignore
   }
@@ -149,7 +155,21 @@ async function deleteSessionFromRedis(
 // Bootstrap: load from file immediately, then connect shared Redis client.
 // If REDIS_URL is set but Redis isn't ready yet (common in Docker during
 // container startup), retry with exponential backoff before giving up.
+// ponytail: single-process, no per-request profile pinning — a request in
+// flight during a profile switch may observe the new profile's data
+// mid-request. Acceptable for single-user manual switching; revisit with
+// request-scoped profile context if Studio ever serves concurrent
+// multi-profile traffic.
+//
+// KNOWN LIMITATION (accepted per CX review): this one-shot Redis hydration
+// IIFE runs once at module load for whichever profile is active at boot and
+// is NOT re-triggered on a live profile switch — Redis rehydration is not
+// profile-switch-aware in this pass. New Redis reads/writes after a switch
+// do use the live-resolved prefix (redisPrefix()), so they land in the
+// correct namespace; only the initial hydration merge is boot-profile-scoped.
+let loadedForProfile: string | null = null
 loadFromDisk()
+loadedForProfile = getActiveProfileName()
 void (async () => {
   if (!process.env.REDIS_URL) return // no Redis configured — skip entirely
 
@@ -182,13 +202,23 @@ function scheduleSave(): void {
   }, 2000)
 }
 
+function ensureLoaded(): void {
+  const active = getActiveProfileName()
+  if (active === loadedForProfile) return
+  store = { sessions: {}, messages: {} }
+  loadFromDisk()
+  loadedForProfile = active
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export function listLocalSessions(): Array<LocalSession> {
+  ensureLoaded()
   return Object.values(store.sessions).sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 export function getLocalSession(sessionId: string): LocalSession | null {
+  ensureLoaded()
   return store.sessions[sessionId] ?? null
 }
 
@@ -196,6 +226,7 @@ export function ensureLocalSession(
   sessionId: string,
   model?: string,
 ): LocalSession {
+  ensureLoaded()
   if (!store.sessions[sessionId]) {
     store.sessions[sessionId] = {
       id: sessionId,
@@ -216,6 +247,7 @@ export function updateLocalSessionTitle(
   sessionId: string,
   title: string,
 ): void {
+  ensureLoaded()
   const session = store.sessions[sessionId]
   if (session) {
     session.title = title
@@ -226,11 +258,13 @@ export function updateLocalSessionTitle(
 }
 
 export function touchLocalSession(sessionId: string): void {
+  ensureLoaded()
   const session = store.sessions[sessionId]
   if (session) session.updatedAt = Date.now()
 }
 
 export function deleteLocalSession(sessionId: string): void {
+  ensureLoaded()
   delete store.sessions[sessionId]
   delete store.messages[sessionId]
   saveToDisk()
@@ -238,6 +272,7 @@ export function deleteLocalSession(sessionId: string): void {
 }
 
 export function getLocalMessages(sessionId: string): Array<LocalMessage> {
+  ensureLoaded()
   return store.messages[sessionId] ?? []
 }
 
@@ -245,6 +280,7 @@ export function appendLocalMessage(
   sessionId: string,
   message: LocalMessage,
 ): void {
+  ensureLoaded()
   ensureLocalSession(sessionId)
   if (!store.messages[sessionId]) store.messages[sessionId] = []
   store.messages[sessionId].push(message)
