@@ -94,6 +94,7 @@ import { Route as ApiMemoryWriteRouteImport } from './routes/api/memory/write'
 import { Route as ApiOauthDeviceCodeRouteImport } from './routes/api/oauth.device-code'
 import { Route as ApiOauthPollTokenRouteImport } from './routes/api/oauth.poll-token'
 import { Route as ApiOperationsIndexRouteImport } from './routes/api/operations/index'
+import { Route as ApiOperationsWorkItemsRouteImport } from './routes/api/operations/work-items'
 import { Route as ApiProfilesActivateRouteImport } from './routes/api/profiles/activate'
 import { Route as ApiProfilesCreateRouteImport } from './routes/api/profiles/create'
 import { Route as ApiProfilesDeleteRouteImport } from './routes/api/profiles/delete'
@@ -545,6 +546,11 @@ const ApiOperationsIndexRoute = ApiOperationsIndexRouteImport.update({
   path: '/api/operations/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOperationsWorkItemsRoute = ApiOperationsWorkItemsRouteImport.update({
+  id: '/api/operations/work-items',
+  path: '/api/operations/work-items',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProfilesActivateRoute = ApiProfilesActivateRouteImport.update({
   id: '/api/profiles/activate',
   path: '/api/profiles/activate',
@@ -758,6 +764,7 @@ export interface FileRoutesByFullPath {
   '/api/memory/write': typeof ApiMemoryWriteRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
   '/api/oauth/poll-token': typeof ApiOauthPollTokenRoute
+  '/api/operations/work-items': typeof ApiOperationsWorkItemsRoute
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
   '/api/profiles/create': typeof ApiProfilesCreateRoute
   '/api/profiles/delete': typeof ApiProfilesDeleteRoute
@@ -869,6 +876,7 @@ export interface FileRoutesByTo {
   '/api/memory/write': typeof ApiMemoryWriteRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
   '/api/oauth/poll-token': typeof ApiOauthPollTokenRoute
+  '/api/operations/work-items': typeof ApiOperationsWorkItemsRoute
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
   '/api/profiles/create': typeof ApiProfilesCreateRoute
   '/api/profiles/delete': typeof ApiProfilesDeleteRoute
@@ -982,6 +990,7 @@ export interface FileRoutesById {
   '/api/memory/write': typeof ApiMemoryWriteRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
   '/api/oauth/poll-token': typeof ApiOauthPollTokenRoute
+  '/api/operations/work-items': typeof ApiOperationsWorkItemsRoute
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
   '/api/profiles/create': typeof ApiProfilesCreateRoute
   '/api/profiles/delete': typeof ApiProfilesDeleteRoute
@@ -1096,6 +1105,7 @@ export interface FileRouteTypes {
     | '/api/memory/write'
     | '/api/oauth/device-code'
     | '/api/oauth/poll-token'
+    | '/api/operations/work-items'
     | '/api/profiles/activate'
     | '/api/profiles/create'
     | '/api/profiles/delete'
@@ -1207,6 +1217,7 @@ export interface FileRouteTypes {
     | '/api/memory/write'
     | '/api/oauth/device-code'
     | '/api/oauth/poll-token'
+    | '/api/operations/work-items'
     | '/api/profiles/activate'
     | '/api/profiles/create'
     | '/api/profiles/delete'
@@ -1319,6 +1330,7 @@ export interface FileRouteTypes {
     | '/api/memory/write'
     | '/api/oauth/device-code'
     | '/api/oauth/poll-token'
+    | '/api/operations/work-items'
     | '/api/profiles/activate'
     | '/api/profiles/create'
     | '/api/profiles/delete'
@@ -1423,6 +1435,7 @@ export interface RootRouteChildren {
   ApiMcpServersRoute: typeof ApiMcpServersRoute
   ApiOauthDeviceCodeRoute: typeof ApiOauthDeviceCodeRoute
   ApiOauthPollTokenRoute: typeof ApiOauthPollTokenRoute
+  ApiOperationsWorkItemsRoute: typeof ApiOperationsWorkItemsRoute
   ApiProfilesActivateRoute: typeof ApiProfilesActivateRoute
   ApiProfilesCreateRoute: typeof ApiProfilesCreateRoute
   ApiProfilesDeleteRoute: typeof ApiProfilesDeleteRoute
@@ -2038,6 +2051,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOperationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/operations/work-items': {
+      id: '/api/operations/work-items'
+      path: '/api/operations/work-items'
+      fullPath: '/api/operations/work-items'
+      preLoaderRoute: typeof ApiOperationsWorkItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/profiles/activate': {
       id: '/api/profiles/activate'
       path: '/api/profiles/activate'
@@ -2423,6 +2443,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpServersRoute: ApiMcpServersRoute,
   ApiOauthDeviceCodeRoute: ApiOauthDeviceCodeRoute,
   ApiOauthPollTokenRoute: ApiOauthPollTokenRoute,
+  ApiOperationsWorkItemsRoute: ApiOperationsWorkItemsRoute,
   ApiProfilesActivateRoute: ApiProfilesActivateRoute,
   ApiProfilesCreateRoute: ApiProfilesCreateRoute,
   ApiProfilesDeleteRoute: ApiProfilesDeleteRoute,
