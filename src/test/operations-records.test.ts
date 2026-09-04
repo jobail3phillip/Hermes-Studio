@@ -69,7 +69,9 @@ describe('operations-records aggregator', () => {
     const items = listOperationsWorkItems()
     const byId = Object.fromEntries(items.map((i) => [i.id, i]))
 
-    expect(byId['STUDIO-999'].type).toBe('mission')
+    // STUDIO-999 is a single 00-intake.md with real-format "**Status:** intake"
+    // -> must classify as a genuine raw-intake record (STUDIO-017 repair fix).
+    expect(byId['STUDIO-999'].type).toBe('intake')
     expect(byId['STUDIO-999'].closed).toBe(false)
 
     expect(byId['STUDIO-001'].closed).toBe(true)
