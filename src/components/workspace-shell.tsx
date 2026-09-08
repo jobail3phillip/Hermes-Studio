@@ -134,6 +134,7 @@ export function WorkspaceShell() {
     if (pathname.startsWith('/agents')) return 'Agents'
     if (pathname.startsWith('/conductor')) return 'Conductor'
     if (pathname.startsWith('/operations')) return 'Operations'
+    if (pathname.startsWith('/missions')) return 'Missions'
     if (pathname.startsWith('/tasks')) return 'Tasks'
     if (pathname.startsWith('/patterns')) return 'Patterns & Corrections'
     if (pathname.startsWith('/analytics')) return 'Analytics'

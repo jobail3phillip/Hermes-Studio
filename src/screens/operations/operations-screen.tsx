@@ -4,18 +4,19 @@ import { StatusBadge } from '@/components/ds/status-badge'
 import { Button } from '@/components/ui/button'
 import { AgentGrid } from './components/agent-grid'
 import { AgentOutputs } from './components/agent-outputs'
-import { OperationsScreen as WorkItemsSurface } from './operations-work-surface'
 import { fetchOperationsOverview } from '@/lib/operations-api'
 import type { OperationAgentStatus } from '@/types/operation'
 
-// 'work' is the STUDIO-017 unified Intake/Missions/Reviews control surface
-// (see operations-work-surface.tsx). Grid/Outputs are the pre-existing
-// crew/agent-status views — left untouched.
-type ViewMode = 'grid' | 'outputs' | 'work'
+// STUDIO-024: the unified Intake/Missions/Reviews governed work-item surface
+// (formerly the 'work' tab here) has been re-homed to its own /missions
+// route (src/screens/missions/missions-work-surface.tsx). This screen keeps
+// its original runtime/agent-oriented responsibility: live crew/agent
+// status (Grid/Outputs) — pre-existing, untouched.
+type ViewMode = 'grid' | 'outputs'
 type StatusFilter = 'all' | OperationAgentStatus
 
 export function OperationsScreen() {
-  const [viewMode, setViewMode] = useState<ViewMode>('work')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const { data: agents = [] } = useQuery({
@@ -73,38 +74,28 @@ export function OperationsScreen() {
 
           {/* Controls */}
           <div className="flex items-center gap-2 flex-wrap">
-            {viewMode !== 'work' && (
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="rounded-md border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1"
-                style={{
-                  background: 'var(--theme-input)',
-                  color: 'var(--theme-text)',
-                  borderColor: 'var(--theme-border)',
-                }}
-              >
-                <option value="all">All statuses</option>
-                <option value="online">Online</option>
-                <option value="offline">Offline</option>
-                <option value="error">Error</option>
-                <option value="unknown">Unknown</option>
-              </select>
-            )}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+              className="rounded-md border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1"
+              style={{
+                background: 'var(--theme-input)',
+                color: 'var(--theme-text)',
+                borderColor: 'var(--theme-border)',
+              }}
+            >
+              <option value="all">All statuses</option>
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="error">Error</option>
+              <option value="unknown">Unknown</option>
+            </select>
 
             {/* View toggle */}
             <div
               className="flex rounded-md border overflow-hidden"
               style={{ borderColor: 'var(--theme-border)' }}
             >
-              <Button
-                variant={viewMode === 'work' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('work')}
-                className="rounded-none border-0 px-3 text-xs"
-              >
-                Work Items
-              </Button>
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
                 size="sm"
@@ -129,19 +120,13 @@ export function OperationsScreen() {
       </div>
 
       {/* Content */}
-      {viewMode === 'work' ? (
-        <div className="flex-1 overflow-hidden">
-          <WorkItemsSurface />
-        </div>
-      ) : (
-        <div className="flex-1 p-6 pb-28">
-          {viewMode === 'grid' ? (
-            <AgentGrid agents={filteredAgents} />
-          ) : (
-            <AgentOutputs agents={filteredAgents} />
-          )}
-        </div>
-      )}
+      <div className="flex-1 p-6 pb-28">
+        {viewMode === 'grid' ? (
+          <AgentGrid agents={filteredAgents} />
+        ) : (
+          <AgentOutputs agents={filteredAgents} />
+        )}
+      </div>
     </div>
   )
 }
