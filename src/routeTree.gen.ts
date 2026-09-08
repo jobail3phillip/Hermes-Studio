@@ -22,6 +22,7 @@ import { Route as HelpRouteImport } from './routes/help'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MemoryRouteImport } from './routes/memory'
+import { Route as MissionsRouteImport } from './routes/missions'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as PatternsRouteImport } from './routes/patterns'
 import { Route as ProfilesRouteImport } from './routes/profiles'
@@ -184,6 +185,11 @@ const LogsRoute = LogsRouteImport.update({
 const MemoryRoute = MemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MissionsRoute = MissionsRouteImport.update({
+  id: '/missions',
+  path: '/missions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperationsRoute = OperationsRouteImport.update({
@@ -696,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof JobsRoute
   '/logs': typeof LogsRoute
   '/memory': typeof MemoryRoute
+  '/missions': typeof MissionsRoute
   '/operations': typeof OperationsRoute
   '/patterns': typeof PatternsRoute
   '/profiles': typeof ProfilesRoute
@@ -809,6 +816,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof JobsRoute
   '/logs': typeof LogsRoute
   '/memory': typeof MemoryRoute
+  '/missions': typeof MissionsRoute
   '/operations': typeof OperationsRoute
   '/patterns': typeof PatternsRoute
   '/profiles': typeof ProfilesRoute
@@ -922,6 +930,7 @@ export interface FileRoutesById {
   '/jobs': typeof JobsRoute
   '/logs': typeof LogsRoute
   '/memory': typeof MemoryRoute
+  '/missions': typeof MissionsRoute
   '/operations': typeof OperationsRoute
   '/patterns': typeof PatternsRoute
   '/profiles': typeof ProfilesRoute
@@ -1037,6 +1046,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/logs'
     | '/memory'
+    | '/missions'
     | '/operations'
     | '/patterns'
     | '/profiles'
@@ -1150,6 +1160,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/logs'
     | '/memory'
+    | '/missions'
     | '/operations'
     | '/patterns'
     | '/profiles'
@@ -1262,6 +1273,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/logs'
     | '/memory'
+    | '/missions'
     | '/operations'
     | '/patterns'
     | '/profiles'
@@ -1376,6 +1388,7 @@ export interface RootRouteChildren {
   JobsRoute: typeof JobsRoute
   LogsRoute: typeof LogsRoute
   MemoryRoute: typeof MemoryRoute
+  MissionsRoute: typeof MissionsRoute
   OperationsRoute: typeof OperationsRoute
   PatternsRoute: typeof PatternsRoute
   ProfilesRoute: typeof ProfilesRoute
@@ -1545,6 +1558,13 @@ declare module '@tanstack/react-router' {
       path: '/memory'
       fullPath: '/memory'
       preLoaderRoute: typeof MemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/missions': {
+      id: '/missions'
+      path: '/missions'
+      fullPath: '/missions'
+      preLoaderRoute: typeof MissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operations': {
@@ -2384,6 +2404,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobsRoute: JobsRoute,
   LogsRoute: LogsRoute,
   MemoryRoute: MemoryRoute,
+  MissionsRoute: MissionsRoute,
   OperationsRoute: OperationsRoute,
   PatternsRoute: PatternsRoute,
   ProfilesRoute: ProfilesRoute,

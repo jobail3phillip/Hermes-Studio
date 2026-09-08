@@ -1,13 +1,16 @@
 /**
- * Operations screen — unified Intake / Missions / Repository Reviews /
- * Software Reviews control surface.
+ * Missions screen — unified Intake / Missions / Repository Reviews /
+ * Software Reviews governed control surface.
  *
  * Built from the HFA-approved STUDIO-016 Meridian design artifact
  * (studio-016-meridian-operational-page-design-a38b/operations-center.html)
- * per STUDIO-017. Preserves that design's visual hierarchy (HFA banner →
- * needs-attention section always first → recently-closed → historical) and
- * interaction model (toolbar search/type/status filters, grouping toggle,
- * in-place expandable row detail, keyboard row activation, HFA-jump).
+ * per STUDIO-017, re-homed from Operations into its own first-class
+ * Missions nav destination per STUDIO-024 (route/nav move only — same
+ * component, data aggregation, and API; no rebuild). Preserves that
+ * design's visual hierarchy (HFA banner → needs-attention section always
+ * first → recently-closed → historical) and interaction model (toolbar
+ * search/type/status filters, grouping toggle, in-place expandable row
+ * detail, keyboard row activation, HFA-jump).
  *
  * Data: real governed mission/review records under
  * ~/Documents/AI/hermes/operations/{missions,reviews} via
@@ -88,7 +91,7 @@ function groupItems(items: WorkItem[], mode: GroupMode): Array<{ key: string; ti
     .map(([resource, list]) => ({ key: resource, title: resource, items: list }))
 }
 
-export function OperationsScreen() {
+export function MissionsWorkSurface() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['operations-work-items'],
     queryFn: fetchOperationsWorkItems,
@@ -216,7 +219,7 @@ export function OperationsScreen() {
         style={{ borderColor: 'var(--theme-border)' }}
       >
         <h1 className="text-sm font-semibold" style={{ color: 'var(--theme-text)' }}>
-          Operations
+          Missions
         </h1>
         <span className="h-3.5 w-px" style={{ background: 'var(--theme-border)' }} />
         <span className="text-xs" style={{ color: 'var(--theme-muted)' }}>
