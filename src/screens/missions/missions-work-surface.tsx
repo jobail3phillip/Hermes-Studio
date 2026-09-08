@@ -25,16 +25,19 @@
  * state change — so it is safe to leave live.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Search01Icon,
   Alert02Icon,
   FolderOpenIcon,
+  Add01Icon,
 } from '@hugeicons/core-free-icons'
 import { EmptyState } from '@/components/ds/empty-state'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { fetchOperationsWorkItems } from '@/lib/operations-api'
+import { NewIntakeDialog } from './new-intake-dialog'
 import type {
   WorkItem,
   WorkItemType,
@@ -92,6 +95,7 @@ function groupItems(items: WorkItem[], mode: GroupMode): Array<{ key: string; ti
 }
 
 export function MissionsWorkSurface() {
+  const queryClient = useQueryClient()
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['operations-work-items'],
     queryFn: fetchOperationsWorkItems,
@@ -104,6 +108,7 @@ export function MissionsWorkSurface() {
   const [groupMode, setGroupMode] = useState<GroupMode>('phase')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set(['historical']))
+  const [newIntakeOpen, setNewIntakeOpen] = useState(false)
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const allItems = data?.items ?? []
@@ -230,6 +235,15 @@ export function MissionsWorkSurface() {
         </span>
       </div>
 
+      <NewIntakeDialog
+        open={newIntakeOpen}
+        onClose={() => setNewIntakeOpen(false)}
+        onCreated={() => {
+          setNewIntakeOpen(false)
+          void queryClient.invalidateQueries({ queryKey: ['operations-work-items'] })
+        }}
+      />
+
       {sourceUnavailable && (
         <div
           className="shrink-0 px-6 py-2 text-xs"
@@ -287,6 +301,15 @@ export function MissionsWorkSurface() {
             style={{ color: 'var(--theme-text)' }}
           />
         </div>
+
+        <Button
+          size="sm"
+          onClick={() => setNewIntakeOpen(true)}
+          aria-label="New Intake"
+        >
+          <HugeiconsIcon icon={Add01Icon} size={14} />
+          New Intake
+        </Button>
 
         <div className="flex gap-1" role="group" aria-label="Filter by type">
           {(Object.keys(TYPE_META) as WorkItemType[]).map((t) => {
