@@ -23,6 +23,14 @@
  * actions are rendered disabled with a TODO tooltip rather than invented.
  * "Open Record" just reveals the on-disk path — informational, not a
  * state change — so it is safe to leave live.
+ *
+ * STUDIO-028: a real governed Disposition action now exists for open
+ * mission/intake records — see disposition-dialog.tsx + POST
+ * /api/missions/:missionId/disposition (server/mission-disposition.ts).
+ * It writes a new numbered file into the same operations/missions/<ID>/
+ * directory using the same field vocabulary as the hand-authored records
+ * above; it does not replace or extend the Approve/Reject/Defer mockup
+ * buttons, which remain out of scope.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -38,6 +46,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { fetchOperationsWorkItems } from '@/lib/operations-api'
 import { NewIntakeDialog } from './new-intake-dialog'
+import { DispositionDialog } from './disposition-dialog'
 import type {
   WorkItem,
   WorkItemType,
@@ -109,6 +118,7 @@ export function MissionsWorkSurface() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set(['historical']))
   const [newIntakeOpen, setNewIntakeOpen] = useState(false)
+  const [dispositionTargetId, setDispositionTargetId] = useState<string | null>(null)
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const allItems = data?.items ?? []
@@ -240,6 +250,19 @@ export function MissionsWorkSurface() {
         onClose={() => setNewIntakeOpen(false)}
         onCreated={() => {
           setNewIntakeOpen(false)
+          void queryClient.invalidateQueries({ queryKey: ['operations-work-items'] })
+        }}
+      />
+
+      <DispositionDialog
+        open={dispositionTargetId !== null}
+        missionId={dispositionTargetId}
+        onClose={() => setDispositionTargetId(null)}
+        onDispositioned={() => {
+          setDispositionTargetId(null)
+          // Same no-manual-refresh mechanism STUDIO-025 established for
+          // New Intake: invalidate the shared query, the row re-renders
+          // from the freshly re-read governance corpus automatically.
           void queryClient.invalidateQueries({ queryKey: ['operations-work-items'] })
         }}
       />
@@ -537,20 +560,32 @@ export function MissionsWorkSurface() {
                               >
                                 Copy Record Path
                               </button>
-                              {/* Approve / Reject / Defer / Route are illustrative-only in the
-                                  approved design; Studio has no existing governed mechanism to
-                                  perform these dispositions today (the governance corpus is
-                                  hand-edited markdown, not backed by a Studio API/state machine).
-                                  Left disabled per STUDIO-017 requirement #4 rather than inventing
-                                  one — see STUDIO-017 handoff "known limitations". */}
+                              {/* Approve / Reject / Defer / Route (the mockup's 4-way review
+                                  actions) remain out of scope — no governed mechanism for those
+                                  exists (STUDIO-017 requirement #4). STUDIO-028 adds a real,
+                                  narrower Disposition action (accept/close or hold) for open
+                                  records, writing a governed record via
+                                  POST /api/missions/:missionId/disposition. */}
                               <button
                                 disabled
-                                title="No existing governed mechanism in Studio performs this disposition — see STUDIO-017 known limitations. TODO: wire once such a mechanism exists."
+                                title="No existing governed mechanism in Studio performs Approve/Reject/Defer/Route — see STUDIO-017 known limitations."
                                 className="cursor-not-allowed rounded px-3 py-1.5 text-[11px] font-medium opacity-40"
                                 style={{ border: '1px solid var(--theme-border)', color: 'var(--theme-muted)' }}
                               >
                                 Approve / Reject / Defer (not wired — no governed mechanism yet)
                               </button>
+                              {!item.closed && (
+                                <button
+                                  className="rounded px-3 py-1.5 text-[11px] font-medium"
+                                  style={{ background: 'var(--theme-active)', color: 'var(--theme-bg)' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setDispositionTargetId(item.id)
+                                  }}
+                                >
+                                  Disposition…
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
